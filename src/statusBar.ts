@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { testApiConnection } from './api/client';
+import { log } from './logger';
 
 export const REFRESH_COMMAND = 'cursor-stats.refresh';
 
@@ -7,7 +9,6 @@ const REFRESHING_TEXT = '$(sync~spin) Refreshing...';
 
 export class CursorStatsStatusBar implements vscode.Disposable {
 	private readonly statusBarItem: vscode.StatusBarItem;
-	private refreshTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	constructor() {
 		this.statusBarItem = vscode.window.createStatusBarItem(
@@ -21,28 +22,19 @@ export class CursorStatsStatusBar implements vscode.Disposable {
 	}
 
 	async refresh(): Promise<void> {
-		this.clearRefreshTimeout();
+		log('Refresh command started');
 		this.statusBarItem.text = REFRESHING_TEXT;
 
-		await new Promise<void>((resolve) => {
-			this.refreshTimeout = setTimeout(() => {
-				this.refreshTimeout = undefined;
-				resolve();
-			}, 1000);
-		});
-
-		this.statusBarItem.text = LOADING_TEXT;
+		try {
+			await testApiConnection();
+			this.statusBarItem.text = '✅ Connected';
+		} catch (error) {
+			const status = error instanceof Error ? error.message : 'Error';
+			this.statusBarItem.text = `❌ ${status}`;
+		}
 	}
 
 	dispose(): void {
-		this.clearRefreshTimeout();
 		this.statusBarItem.dispose();
-	}
-
-	private clearRefreshTimeout(): void {
-		if (this.refreshTimeout !== undefined) {
-			clearTimeout(this.refreshTimeout);
-			this.refreshTimeout = undefined;
-		}
 	}
 }

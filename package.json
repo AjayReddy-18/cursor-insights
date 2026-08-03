@@ -18,6 +18,14 @@
       {
         "command": "cursor-stats.refresh",
         "title": "Cursor Stats: Refresh"
+      },
+      {
+        "command": "cursor-stats.dumpCookies",
+        "title": "Cursor Stats: Dump Cookies"
+      },
+      {
+        "command": "cursor-stats.showLogs",
+        "title": "Cursor Stats: Show Logs"
       }
     ]
   },

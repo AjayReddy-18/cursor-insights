@@ -34,19 +34,110 @@ __export(extension_exports, {
   deactivate: () => deactivate
 });
 module.exports = __toCommonJS(extension_exports);
-var vscode2 = __toESM(require("vscode"));
+var vscode3 = __toESM(require("vscode"));
+
+// src/logger.ts
+var vscode = __toESM(require("vscode"));
+var CHANNEL_NAME = "Cursor Stats";
+var outputChannel;
+function initLogger(context) {
+  if (outputChannel) {
+    return;
+  }
+  outputChannel = vscode.window.createOutputChannel(CHANNEL_NAME);
+  context.subscriptions.push(outputChannel);
+}
+function getOutput() {
+  if (!outputChannel) {
+    throw new Error("Logger not initialized. Call initLogger() during activation.");
+  }
+  return outputChannel;
+}
+function showLogs() {
+  getOutput().show(true);
+}
+function timestamp() {
+  return (/* @__PURE__ */ new Date()).toISOString();
+}
+function log(message) {
+  getOutput().appendLine(`[${timestamp()}] ${message}`);
+}
+function logJson(label, data) {
+  log(label);
+  getOutput().appendLine(JSON.stringify(data, null, 2));
+}
+function logError(message, error) {
+  log(message);
+  if (error instanceof Error) {
+    getOutput().appendLine(error.stack ?? `${error.name}: ${error.message}`);
+    return;
+  }
+  getOutput().appendLine(String(error));
+}
+
+// src/dumpCookies.ts
+async function dumpCookies() {
+  log("Dump cookies: started");
+  let electron;
+  try {
+    electron = require("electron");
+  } catch (error) {
+    logError("Failed to import electron:", error);
+    return;
+  }
+  try {
+    const cookies = await electron.session.defaultSession.cookies.get({});
+    log(`Dump cookies: found ${cookies.length} cookie(s)`);
+    for (const cookie of cookies) {
+      log(`name=${cookie.name}; domain=${cookie.domain ?? "(none)"}`);
+    }
+    log("Dump cookies: finished");
+  } catch (error) {
+    logError("Failed to read Electron cookies:", error);
+  }
+}
 
 // src/statusBar.ts
-var vscode = __toESM(require("vscode"));
+var vscode2 = __toESM(require("vscode"));
+
+// src/api/client.ts
+var USAGE_SUMMARY_URL = "https://cursor.com/api/usage-summary";
+function headersToObject(headers) {
+  const result = {};
+  headers.forEach((value, key) => {
+    result[key] = value;
+  });
+  return result;
+}
+async function testApiConnection() {
+  log(`API request started: GET ${USAGE_SUMMARY_URL}`);
+  try {
+    const response = await fetch(USAGE_SUMMARY_URL, {
+      credentials: "include"
+    });
+    log(`Response status: ${response.status} ${response.statusText}`);
+    logJson("Response headers:", headersToObject(response.headers));
+    if (!response.ok) {
+      throw new Error(String(response.status));
+    }
+    const data = await response.json();
+    logJson("Success JSON:", data);
+    return data;
+  } catch (error) {
+    logError("API request failed:", error);
+    throw error;
+  }
+}
+
+// src/statusBar.ts
 var REFRESH_COMMAND = "cursor-stats.refresh";
 var LOADING_TEXT = "\u26A1 Cursor Usage: Loading...";
 var REFRESHING_TEXT = "$(sync~spin) Refreshing...";
 var CursorStatsStatusBar = class {
   statusBarItem;
-  refreshTimeout;
   constructor() {
-    this.statusBarItem = vscode.window.createStatusBarItem(
-      vscode.StatusBarAlignment.Right,
+    this.statusBarItem = vscode2.window.createStatusBarItem(
+      vscode2.StatusBarAlignment.Right,
       100
     );
     this.statusBarItem.text = LOADING_TEXT;
@@ -55,36 +146,45 @@ var CursorStatsStatusBar = class {
     this.statusBarItem.show();
   }
   async refresh() {
-    this.clearRefreshTimeout();
+    log("Refresh command started");
     this.statusBarItem.text = REFRESHING_TEXT;
-    await new Promise((resolve) => {
-      this.refreshTimeout = setTimeout(() => {
-        this.refreshTimeout = void 0;
-        resolve();
-      }, 1e3);
-    });
-    this.statusBarItem.text = LOADING_TEXT;
+    try {
+      await testApiConnection();
+      this.statusBarItem.text = "\u2705 Connected";
+    } catch (error) {
+      const status = error instanceof Error ? error.message : "Error";
+      this.statusBarItem.text = `\u274C ${status}`;
+    }
   }
   dispose() {
-    this.clearRefreshTimeout();
     this.statusBarItem.dispose();
-  }
-  clearRefreshTimeout() {
-    if (this.refreshTimeout !== void 0) {
-      clearTimeout(this.refreshTimeout);
-      this.refreshTimeout = void 0;
-    }
   }
 };
 
 // src/extension.ts
 function activate(context) {
+  initLogger(context);
+  log("Extension activated");
+  showLogs();
   const statusBar = new CursorStatsStatusBar();
-  const refreshCommand = vscode2.commands.registerCommand(
+  const refreshCommand = vscode3.commands.registerCommand(
     REFRESH_COMMAND,
     () => statusBar.refresh()
   );
-  context.subscriptions.push(statusBar, refreshCommand);
+  const dumpCookiesCommand = vscode3.commands.registerCommand(
+    "cursor-stats.dumpCookies",
+    () => dumpCookies()
+  );
+  const showLogsCommand = vscode3.commands.registerCommand(
+    "cursor-stats.showLogs",
+    () => showLogs()
+  );
+  context.subscriptions.push(
+    statusBar,
+    refreshCommand,
+    dumpCookiesCommand,
+    showLogsCommand
+  );
 }
 function deactivate() {
 }
