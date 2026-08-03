@@ -34,13 +34,57 @@ __export(extension_exports, {
   deactivate: () => deactivate
 });
 module.exports = __toCommonJS(extension_exports);
+var vscode2 = __toESM(require("vscode"));
+
+// src/statusBar.ts
 var vscode = __toESM(require("vscode"));
+var REFRESH_COMMAND = "cursor-stats.refresh";
+var LOADING_TEXT = "\u26A1 Cursor Usage: Loading...";
+var REFRESHING_TEXT = "$(sync~spin) Refreshing...";
+var CursorStatsStatusBar = class {
+  statusBarItem;
+  refreshTimeout;
+  constructor() {
+    this.statusBarItem = vscode.window.createStatusBarItem(
+      vscode.StatusBarAlignment.Right,
+      100
+    );
+    this.statusBarItem.text = LOADING_TEXT;
+    this.statusBarItem.tooltip = "Refresh Cursor usage";
+    this.statusBarItem.command = REFRESH_COMMAND;
+    this.statusBarItem.show();
+  }
+  async refresh() {
+    this.clearRefreshTimeout();
+    this.statusBarItem.text = REFRESHING_TEXT;
+    await new Promise((resolve) => {
+      this.refreshTimeout = setTimeout(() => {
+        this.refreshTimeout = void 0;
+        resolve();
+      }, 1e3);
+    });
+    this.statusBarItem.text = LOADING_TEXT;
+  }
+  dispose() {
+    this.clearRefreshTimeout();
+    this.statusBarItem.dispose();
+  }
+  clearRefreshTimeout() {
+    if (this.refreshTimeout !== void 0) {
+      clearTimeout(this.refreshTimeout);
+      this.refreshTimeout = void 0;
+    }
+  }
+};
+
+// src/extension.ts
 function activate(context) {
-  console.log('Congratulations, your extension "cursor-stats" is now active!');
-  const disposable = vscode.commands.registerCommand("cursor-stats.helloWorld", () => {
-    vscode.window.showInformationMessage("Hello World from Cursor Stats!");
-  });
-  context.subscriptions.push(disposable);
+  const statusBar = new CursorStatsStatusBar();
+  const refreshCommand = vscode2.commands.registerCommand(
+    REFRESH_COMMAND,
+    () => statusBar.refresh()
+  );
+  context.subscriptions.push(statusBar, refreshCommand);
 }
 function deactivate() {
 }
