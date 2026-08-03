@@ -12,7 +12,6 @@ import {
 export function activate(context: vscode.ExtensionContext): void {
 	initLogger(context);
 	log('Extension activated');
-	showLogs();
 
 	// Swap ManualSessionProvider for Cursor CLI / OAuth later without changing the rest.
 	const auth = new ManualSessionProvider(context.secrets);
