@@ -16,6 +16,14 @@
   "contributes": {
     "commands": [
       {
+        "command": "cursor-stats.connect",
+        "title": "Cursor Stats: Connect Account"
+      },
+      {
+        "command": "cursor-stats.disconnect",
+        "title": "Cursor Stats: Disconnect Account"
+      },
+      {
         "command": "cursor-stats.refresh",
         "title": "Cursor Stats: Refresh"
       },
