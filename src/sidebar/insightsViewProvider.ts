@@ -98,39 +98,73 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 		}
 		body {
 			margin: 0;
-			padding: 12px 14px 20px;
+			padding: 10px 16px 16px;
 			font-family: var(--vscode-font-family);
 			font-size: var(--vscode-font-size);
 			font-weight: var(--vscode-font-weight);
 			color: var(--vscode-foreground);
 			background: transparent;
-			line-height: 1.4;
+			line-height: 1.45;
 		}
 		.section {
 			padding: 12px 0;
-			border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, rgba(128,128,128,0.35)));
+			border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-widget-border, rgba(128,128,128,0.35)));
 		}
 		.section:last-child {
 			border-bottom: none;
 		}
-		.section-title {
+		.header-row {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 8px;
 			margin: 0 0 8px;
+		}
+		.section-title {
+			margin: 0;
 			font-size: 11px;
 			font-weight: 600;
 			letter-spacing: 0.04em;
 			text-transform: uppercase;
 			color: var(--vscode-descriptionForeground);
 		}
-		.amount {
-			margin: 0 0 10px;
-			font-size: 18px;
-			font-weight: 600;
-			font-variant-numeric: tabular-nums;
-		}
-		.amount.muted {
-			font-size: 15px;
-			font-weight: 500;
+		.refresh-action {
+			margin: 0;
+			padding: 0;
+			border: none;
+			background: transparent;
 			color: var(--vscode-descriptionForeground);
+			font: inherit;
+			font-size: 14px;
+			line-height: 1;
+			cursor: pointer;
+			opacity: 0.8;
+		}
+		.refresh-action:hover {
+			color: var(--vscode-foreground);
+			opacity: 1;
+		}
+		.refresh-action:focus {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: 2px;
+		}
+		.refresh-action:disabled {
+			cursor: default;
+			opacity: 0.6;
+		}
+		.refresh-action.spinning {
+			animation: spin 0.8s linear infinite;
+		}
+		@keyframes spin {
+			from { transform: rotate(0deg); }
+			to { transform: rotate(360deg); }
+		}
+		.amount {
+			margin: 0 0 8px;
+			font-size: 13px;
+			font-weight: 400;
+			font-variant-numeric: tabular-nums;
+			color: var(--vscode-foreground);
 		}
 		.meta {
 			margin: 8px 0 0;
@@ -138,63 +172,43 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			color: var(--vscode-descriptionForeground);
 		}
 		.progress {
-			height: 6px;
-			border-radius: 3px;
+			height: 4px;
+			border-radius: 2px;
 			background: var(--vscode-editorWidget-background, rgba(128,128,128,0.25));
 			overflow: hidden;
 		}
 		.progress-fill {
 			height: 100%;
-			border-radius: 3px;
+			border-radius: 2px;
 			background: var(--vscode-progressBar-background, var(--vscode-button-background));
 			width: 0%;
 			transition: width 0.25s ease;
-		}
-		.percent {
-			margin: 6px 0 0;
-			font-size: 12px;
-			font-variant-numeric: tabular-nums;
-			color: var(--vscode-descriptionForeground);
-		}
-		.placeholder {
-			margin: 0;
-			font-size: 12px;
-			color: var(--vscode-descriptionForeground);
-			font-style: italic;
 		}
 		.actions {
 			display: flex;
 			flex-direction: column;
 			gap: 6px;
+			align-items: flex-start;
 		}
-		button.action {
-			display: flex;
-			align-items: center;
-			gap: 8px;
-			width: 100%;
-			padding: 6px 10px;
-			border: 1px solid var(--vscode-button-border, transparent);
-			border-radius: 2px;
-			background: var(--vscode-button-secondaryBackground);
-			color: var(--vscode-button-secondaryForeground);
+		.link-action {
+			margin: 0;
+			padding: 0;
+			border: none;
+			background: transparent;
+			color: var(--vscode-textLink-foreground);
 			font: inherit;
+			font-size: 13px;
 			text-align: left;
 			cursor: pointer;
+			text-decoration: none;
 		}
-		button.action:hover {
-			background: var(--vscode-button-secondaryHoverBackground);
+		.link-action:hover {
+			color: var(--vscode-textLink-activeForeground);
+			text-decoration: underline;
 		}
-		button.action:focus {
+		.link-action:focus {
 			outline: 1px solid var(--vscode-focusBorder);
-			outline-offset: 1px;
-		}
-		button.action.primary {
-			background: var(--vscode-button-background);
-			color: var(--vscode-button-foreground);
-			border-color: var(--vscode-button-border, transparent);
-		}
-		button.action.primary:hover {
-			background: var(--vscode-button-hoverBackground);
+			outline-offset: 2px;
 		}
 		.status-msg {
 			margin: 0;
@@ -212,6 +226,9 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 		const vscode = acquireVsCodeApi();
 		document.querySelectorAll('[data-action]').forEach((el) => {
 			el.addEventListener('click', () => {
+				if (el.disabled) {
+					return;
+				}
 				vscode.postMessage({ type: el.getAttribute('data-action') });
 			});
 		});
@@ -221,19 +238,21 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 	}
 
 	private getBody(usage: UsageModel | undefined, state: UsageServiceState): string {
+		const refreshing = state === 'loading';
+
 		if (state === 'disconnected') {
 			return `
 				<div class="section">
-					<p class="section-title">Cursor Insights</p>
+					<div class="header-row">
+						<p class="section-title">Monthly Usage</p>
+					</div>
 					<p class="status-msg">Connect your Cursor account to see usage.</p>
 				</div>
 				<div class="section">
-					<p class="section-title">Quick Actions</p>
 					<div class="actions">
-						<button class="action primary" data-action="reconnect">🔐 Connect Account</button>
+						<button class="link-action" data-action="reconnect">Connect Account</button>
 					</div>
-				</div>
-				${this.placeholderSections()}`;
+				</div>`;
 		}
 
 		if (!usage) {
@@ -244,11 +263,10 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			const errorClass = state === 'error' ? ' error' : '';
 			return `
 				<div class="section">
-					<p class="section-title">💰 Monthly Usage</p>
+					${this.headerRow(refreshing)}
 					<p class="status-msg${errorClass}">${escapeHtml(msg)}</p>
 				</div>
-				${this.actionsSection(state === 'loading')}
-				${this.placeholderSections()}`;
+				${this.actionsSection()}`;
 		}
 
 		const used = formatCentsAsUsd(usage.usedCents);
@@ -256,58 +274,41 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 		const percent = Math.min(100, Math.max(0, usage.percentUsed));
 		const percentLabel = `${percent.toFixed(2)}%`;
 		const resets = formatBillingDay(usage.billingCycleEnd);
-		const loadingNote =
-			state === 'loading'
-				? `<p class="meta">Refreshing…</p>`
-				: state === 'error'
-					? `<p class="status-msg error">Last refresh failed — showing cached data.</p>`
-					: '';
+		const errorNote =
+			state === 'error'
+				? `<p class="status-msg error">Last refresh failed — showing cached data.</p>`
+				: '';
 
 		return `
 			<div class="section">
-				<p class="section-title">💰 Monthly Usage</p>
-				<p class="amount">${escapeHtml(used)} / ${escapeHtml(limit)}</p>
+				${this.headerRow(refreshing)}
+				<p class="amount">${escapeHtml(used)} / ${escapeHtml(limit)} (${escapeHtml(percentLabel)})</p>
 				<div class="progress" role="progressbar" aria-valuenow="${percent.toFixed(1)}" aria-valuemin="0" aria-valuemax="100">
 					<div class="progress-fill" style="width: ${percent.toFixed(2)}%"></div>
 				</div>
-				<p class="percent">${escapeHtml(percentLabel)}</p>
-				<p class="meta">Resets: ${escapeHtml(resets)}</p>
-				${loadingNote}
+				<p class="meta">Resets ${escapeHtml(resets)}</p>
+				${errorNote}
 			</div>
-
-			<div class="section">
-				<p class="section-title">Today's Spend</p>
-				<p class="amount muted">$0.00</p>
-				<p class="placeholder">Placeholder</p>
-			</div>
-
-			${this.actionsSection(state === 'loading')}
-
-			${this.placeholderSections()}`;
+			${this.actionsSection()}`;
 	}
 
-	private actionsSection(loading: boolean): string {
-		const refreshLabel = loading ? '🔄 Refreshing…' : '🔄 Refresh';
+	private headerRow(refreshing: boolean): string {
+		const spinClass = refreshing ? ' spinning' : '';
+		const disabled = refreshing ? ' disabled' : '';
 		return `
-			<div class="section">
-				<p class="section-title">Quick Actions</p>
-				<div class="actions">
-					<button class="action" data-action="refresh"${loading ? ' disabled' : ''}>${refreshLabel}</button>
-					<button class="action" data-action="openDashboard">🌐 Open Cursor Usage Dashboard</button>
-					<button class="action" data-action="reconnect">🔐 Reconnect Account</button>
-				</div>
+			<div class="header-row">
+				<p class="section-title">Monthly Usage</p>
+				<button class="refresh-action${spinClass}" data-action="refresh" title="Refresh"${disabled} aria-label="Refresh">⟳</button>
 			</div>`;
 	}
 
-	private placeholderSections(): string {
+	private actionsSection(): string {
 		return `
 			<div class="section">
-				<p class="section-title">Recent Usage</p>
-				<p class="placeholder">Coming Soon</p>
-			</div>
-			<div class="section">
-				<p class="section-title">Model Breakdown</p>
-				<p class="placeholder">Coming Soon</p>
+				<div class="actions">
+					<button class="link-action" data-action="openDashboard">Open Cursor Usage Dashboard</button>
+					<button class="link-action" data-action="reconnect">Reconnect Account</button>
+				</div>
 			</div>`;
 	}
 

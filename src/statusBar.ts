@@ -4,9 +4,9 @@ import { CONNECT_COMMAND, OPEN_INSIGHTS_COMMAND } from './commands';
 import type { UsageModel } from './models/usageModel';
 import type { UsageService, UsageServiceState } from './services/usageService';
 
-const DISCONNECTED_TEXT = '⚠ Connect Cursor';
-const REFRESHING_TEXT = '$(sync~spin) Refreshing...';
-const UNAVAILABLE_TEXT = '💰 Usage unavailable';
+const DISCONNECTED_TEXT = 'Connect Cursor';
+const REFRESHING_TEXT = 'MTD - …';
+const UNAVAILABLE_TEXT = 'MTD - unavailable';
 
 /** Near the Git branch on the left (SCM uses priority ~100). */
 const STATUS_BAR_PRIORITY = 90;
@@ -55,7 +55,7 @@ export class CursorInsightsStatusBar implements vscode.Disposable {
 		const cycleStart = formatBillingDay(usage.billingCycleStart);
 		const cycleEnd = formatBillingDay(usage.billingCycleEnd);
 
-		this.statusBarItem.text = `💰 ${used}`;
+		this.statusBarItem.text = `MTD - ${used} / ${limit}`;
 		this.statusBarItem.tooltip = [
 			'Cursor Insights',
 			'',

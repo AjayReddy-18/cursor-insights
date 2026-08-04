@@ -4,11 +4,11 @@ Display your Cursor monthly usage in the status bar and a dedicated Explorer sid
 
 ## Features
 
-- 💰 Status bar shows current monthly usage (`💰 $19.04`)
-- 📊 Explorer sidebar dashboard with progress bar and quick actions
-- 🔄 Auto refresh every 60 seconds
-- 🔐 Securely stores your WorkosCursorSessionToken using VS Code Secret Storage
-- 🖱 Click the status bar to open Cursor Insights and refresh
+- Status bar shows month-to-date usage (`MTD - $19.04 / $200.00`)
+- Explorer sidebar dashboard with progress bar and quick actions
+- Auto refresh every 60 seconds
+- Securely stores your WorkosCursorSessionToken using VS Code Secret Storage
+- Click the status bar to open Cursor Insights and refresh
 
 ## Setup
 
@@ -21,7 +21,7 @@ Display your Cursor monthly usage in the status bar and a dedicated Explorer sid
 
 Example:
 
-💰 $19.04
+MTD - $19.04 / $200.00
 
 Hover to view:
 
@@ -34,10 +34,9 @@ Click to open the Cursor Insights sidebar and refresh.
 
 The **Cursor Insights** view in Explorer shows:
 
-- Monthly usage with progress bar
-- Today's spend (placeholder)
-- Quick actions: Refresh, Open Dashboard, Reconnect
-- Recent Usage / Model Breakdown (coming soon)
+- Monthly usage with progress bar and inline refresh
+- Open Cursor Usage Dashboard
+- Reconnect Account
 
 ## Commands
 
