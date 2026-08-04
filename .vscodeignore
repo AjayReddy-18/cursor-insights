@@ -1,0 +1,27 @@
+# Exclude development and CI files from the packaged .vsix.
+.vscode/**
+.vscode-test/**
+.github/**
+src/**
+node_modules/**
+out/**
+**/*.ts
+**/*.map
+**/*.vsix
+.gitignore
+.eslintrc*
+eslint.config.*
+tsconfig.json
+esbuild.js
+**/*.test.js
+**/*.test.ts
+**/test/**
+vsc-extension-quickstart.md
+.yarnrc
+webpack.config.js
+**/tsconfig.json
+**/.eslintrc.json
+npm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml

@@ -1,0 +1,115 @@
+# CI and release workflow for the Cursor Insights VS Code extension.
+# - Pull requests and pushes to main: install, compile, and lint.
+# - Tags matching v*: package a .vsix and publish it to a GitHub Release.
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+
+# Cancel in-progress runs for the same branch/PR to save CI minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Default to read-only; the release job elevates contents for Releases.
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Build & validate on every PR and push to main (and before tagging releases).
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      # Fetch the repository source at the commit that triggered this run.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Install Node.js 22 and enable npm dependency caching.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      # Install dependencies from the lockfile for reproducible builds.
+      - name: Install dependencies
+        run: npm ci
+
+      # Type-check, lint (via compile script), and bundle the extension.
+      - name: Compile extension
+        run: npm run compile
+
+      # Run ESLint explicitly as a dedicated CI gate.
+      - name: Lint
+        run: npm run lint
+
+  # ---------------------------------------------------------------------------
+  # Package the extension and publish a GitHub Release when a v* tag is pushed.
+  # ---------------------------------------------------------------------------
+  release:
+    name: Release
+    needs: build
+    # Only run when a version tag (e.g. v0.0.1, v1.2.3) is pushed.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    # Required to create/update GitHub Releases and upload assets.
+    permissions:
+      contents: write
+
+    steps:
+      # Fetch the tagged commit so packaging matches the release tag.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Install Node.js 22 with npm caching for a clean release build.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      # Install dependencies from the lockfile for reproducible packaging.
+      - name: Install dependencies
+        run: npm ci
+
+      # Install the Visual Studio Code Extension Manager used to build .vsix files.
+      - name: Install vsce
+        run: npm install -g @vscode/vsce
+
+      # Read the extension version from package.json and package a named .vsix.
+      # vsce runs the vscode:prepublish script (production build) automatically.
+      # The .vsix is a CI artifact only — it is gitignored and never committed.
+      - name: Package extension
+        id: package
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          VSIX_NAME="cursor-insights-${VERSION}.vsix"
+          vsce package --out "${VSIX_NAME}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "vsix=${VSIX_NAME}" >> "${GITHUB_OUTPUT}"
+
+      # Create the GitHub Release for this tag, or update it if it already exists.
+      # Uploads the generated .vsix as a release asset (overwrites same-named assets).
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: ${{ steps.package.outputs.vsix }}
+          fail_on_unmatched_files: true
+          overwrite_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
