@@ -11,4 +11,4 @@ export const SHOW_LOGS_COMMAND = 'cursor-stats.showLogs';
 export const INSIGHTS_VIEW_ID = 'cursorInsights.sidebar';
 
 export const CURSOR_USAGE_DASHBOARD_URL =
-	'https://cursor.com/t/thoughtworks/usage';
+	'https://cursor.com/dashboard/usage';
