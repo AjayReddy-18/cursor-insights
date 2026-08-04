@@ -7,13 +7,20 @@ import {
 	OPEN_DASHBOARD_COMMAND,
 	REFRESH_COMMAND,
 } from '../commands';
+import {
+	ALERT_THRESHOLD_MAX,
+	ALERT_THRESHOLD_MIN,
+	getAlertThreshold,
+	setAlertThreshold,
+} from '../config';
 import type { UsageModel } from '../models/usageModel';
 import type { UsageService, UsageServiceState } from '../services/usageService';
 
 type WebviewMessage =
 	| { type: 'refresh' }
 	| { type: 'openDashboard' }
-	| { type: 'reconnect' };
+	| { type: 'reconnect' }
+	| { type: 'setAlertThreshold'; value: number };
 
 /**
  * Explorer sidebar dashboard. Receives a typed UsageModel from UsageService —
@@ -59,6 +66,11 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 				break;
 			case 'reconnect':
 				await vscode.commands.executeCommand(CONNECT_COMMAND);
+				break;
+			case 'setAlertThreshold':
+				if (typeof message.value === 'number') {
+					await setAlertThreshold(message.value);
+				}
 				break;
 		}
 	}
@@ -218,6 +230,18 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 		.status-msg.error {
 			color: var(--vscode-errorForeground);
 		}
+		.threshold-value {
+			margin: 0 0 10px;
+			font-size: 13px;
+			font-variant-numeric: tabular-nums;
+			color: var(--vscode-foreground);
+		}
+		.threshold-slider {
+			width: 100%;
+			margin: 0;
+			accent-color: var(--vscode-progressBar-background, var(--vscode-button-background));
+			cursor: pointer;
+		}
 	</style>
 </head>
 <body>
@@ -232,6 +256,26 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 				vscode.postMessage({ type: el.getAttribute('data-action') });
 			});
 		});
+
+		const slider = document.getElementById('alert-threshold');
+		const valueLabel = document.getElementById('alert-threshold-value');
+		if (slider && valueLabel) {
+			const formatUsd = (value) =>
+				new Intl.NumberFormat('en-US', {
+					style: 'currency',
+					currency: 'USD',
+					minimumFractionDigits: 2,
+					maximumFractionDigits: 2,
+				}).format(Number(value));
+
+			slider.addEventListener('input', () => {
+				valueLabel.textContent = formatUsd(slider.value);
+				vscode.postMessage({
+					type: 'setAlertThreshold',
+					value: Number(slider.value),
+				});
+			});
+		}
 	</script>
 </body>
 </html>`;
@@ -248,6 +292,7 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 					</div>
 					<p class="status-msg">Connect your Cursor account to see usage.</p>
 				</div>
+				${this.alertThresholdSection()}
 				<div class="section">
 					<div class="actions">
 						<button class="link-action" data-action="reconnect">Connect Account</button>
@@ -266,6 +311,7 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 					${this.headerRow(refreshing)}
 					<p class="status-msg${errorClass}">${escapeHtml(msg)}</p>
 				</div>
+				${this.alertThresholdSection()}
 				${this.actionsSection()}`;
 		}
 
@@ -289,6 +335,7 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 				<p class="meta">Resets ${escapeHtml(resets)}</p>
 				${errorNote}
 			</div>
+			${this.alertThresholdSection()}
 			${this.actionsSection()}`;
 	}
 
@@ -299,6 +346,26 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			<div class="header-row">
 				<p class="section-title">Monthly Usage</p>
 				<button class="refresh-action${spinClass}" data-action="refresh" title="Refresh"${disabled} aria-label="Refresh">⟳</button>
+			</div>`;
+	}
+
+	private alertThresholdSection(): string {
+		const threshold = getAlertThreshold();
+		const label = formatCentsAsUsd(Math.round(threshold * 100));
+		return `
+			<div class="section">
+				<p class="section-title">Alert Threshold</p>
+				<p class="threshold-value" id="alert-threshold-value">${escapeHtml(label)}</p>
+				<input
+					class="threshold-slider"
+					id="alert-threshold"
+					type="range"
+					min="${ALERT_THRESHOLD_MIN}"
+					max="${ALERT_THRESHOLD_MAX}"
+					step="0.5"
+					value="${threshold}"
+					aria-label="Alert threshold in US dollars"
+				/>
 			</div>`;
 	}
 

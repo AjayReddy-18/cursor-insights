@@ -6,3 +6,11 @@ export interface IndividualOverallUsage {
 	billingCycleStart: Date;
 	billingCycleEnd: Date;
 }
+
+/** Single usage event from /api/dashboard/get-filtered-usage-events. */
+export interface UsageEvent {
+	timestamp: string;
+	conversationId: string;
+	chargedCents: number;
+	model: string;
+}

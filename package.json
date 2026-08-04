@@ -52,6 +52,18 @@
           "name": "Cursor Insights"
         }
       ]
+    },
+    "configuration": {
+      "title": "Cursor Insights",
+      "properties": {
+        "cursorInsights.alertThreshold": {
+          "type": "number",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Show a notification when a single Cursor request costs more than this amount (USD)."
+        }
+      }
     }
   },
   "scripts": {

@@ -12,6 +12,7 @@ import {
 } from './commands';
 import { dumpCookies } from './dumpCookies';
 import { initLogger, log, showLogs } from './logger';
+import { HighCostAlertService } from './services/highCostAlertService';
 import { UsageService } from './services/usageService';
 import {
 	InsightsViewProvider,
@@ -26,16 +27,26 @@ export function activate(context: vscode.ExtensionContext): void {
 	// Swap ManualSessionProvider for Cursor CLI / OAuth later without changing the rest.
 	const auth = new ManualSessionProvider(context.secrets);
 	const usageService = new UsageService(auth);
+	const highCostAlertService = new HighCostAlertService(auth);
 	const statusBar = new CursorInsightsStatusBar(usageService);
 	const sidebar = new InsightsViewProvider(usageService);
 
 	context.subscriptions.push(
 		usageService,
+		highCostAlertService,
 		statusBar,
 		sidebar,
 		vscode.window.registerWebviewViewProvider(INSIGHTS_VIEW_ID, sidebar),
-		vscode.commands.registerCommand(CONNECT_COMMAND, () => usageService.connect()),
-		vscode.commands.registerCommand(DISCONNECT_COMMAND, () => usageService.disconnect()),
+		vscode.commands.registerCommand(CONNECT_COMMAND, async () => {
+			const connected = await usageService.connect();
+			if (connected) {
+				await highCostAlertService.onConnected();
+			}
+		}),
+		vscode.commands.registerCommand(DISCONNECT_COMMAND, async () => {
+			highCostAlertService.onDisconnected();
+			await usageService.disconnect();
+		}),
 		vscode.commands.registerCommand(REFRESH_COMMAND, () => usageService.refresh()),
 		vscode.commands.registerCommand(OPEN_INSIGHTS_COMMAND, async () => {
 			await vscode.commands.executeCommand(`${INSIGHTS_VIEW_ID}.focus`);
@@ -49,6 +60,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	);
 
 	void usageService.initialize();
+	void highCostAlertService.initialize();
 }
 
 export function deactivate(): void {}
