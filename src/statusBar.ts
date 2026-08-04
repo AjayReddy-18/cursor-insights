@@ -1,154 +1,81 @@
 import * as vscode from 'vscode';
-import { fetchIndividualUsage } from './api/client';
 import { formatBillingDay, formatCentsAsUsd } from './api/format';
-import type { IndividualOverallUsage } from './api/types';
-import type { AuthProvider } from './auth/types';
-import { log, logError } from './logger';
-
-export const CONNECT_COMMAND = 'cursor-stats.connect';
-export const DISCONNECT_COMMAND = 'cursor-stats.disconnect';
-export const REFRESH_COMMAND = 'cursor-stats.refresh';
+import { CONNECT_COMMAND, OPEN_INSIGHTS_COMMAND } from './commands';
+import type { UsageModel } from './models/usageModel';
+import type { UsageService, UsageServiceState } from './services/usageService';
 
 const DISCONNECTED_TEXT = '⚠ Connect Cursor';
 const REFRESHING_TEXT = '$(sync~spin) Refreshing...';
-const REFRESH_INTERVAL_MS = 60_000;
+const UNAVAILABLE_TEXT = '💰 Usage unavailable';
 
-export class CursorStatsStatusBar implements vscode.Disposable {
+/** Near the Git branch on the left (SCM uses priority ~100). */
+const STATUS_BAR_PRIORITY = 90;
+
+export class CursorInsightsStatusBar implements vscode.Disposable {
 	private readonly statusBarItem: vscode.StatusBarItem;
-	private lastUsage: IndividualOverallUsage | undefined;
-	private refreshTimer: ReturnType<typeof setInterval> | undefined;
-	private refreshInFlight: Promise<void> | undefined;
+	private readonly subscription: vscode.Disposable;
 
-	constructor(private readonly auth: AuthProvider) {
+	constructor(private readonly usageService: UsageService) {
 		this.statusBarItem = vscode.window.createStatusBarItem(
-			vscode.StatusBarAlignment.Right,
-			100
+			vscode.StatusBarAlignment.Left,
+			STATUS_BAR_PRIORITY
 		);
 		this.statusBarItem.show();
-	}
 
-	async initialize(): Promise<void> {
-		if (await this.auth.isAuthenticated()) {
-			await this.refresh();
-			this.startAutoRefresh();
-			return;
-		}
-
-		this.showDisconnected();
-	}
-
-	async connect(): Promise<void> {
-		const connected = await this.auth.connect();
-		if (!connected) {
-			this.showDisconnected();
-			return;
-		}
-
-		await this.refresh();
-		this.startAutoRefresh();
-	}
-
-	async disconnect(): Promise<void> {
-		this.stopAutoRefresh();
-		this.lastUsage = undefined;
-		await this.auth.disconnect();
-		this.showDisconnected();
-		void vscode.window.showInformationMessage('Cursor Stats: Account disconnected');
-	}
-
-	async refresh(): Promise<void> {
-		if (this.refreshInFlight) {
-			return this.refreshInFlight;
-		}
-
-		this.refreshInFlight = this.doRefresh().finally(() => {
-			this.refreshInFlight = undefined;
+		this.subscription = this.usageService.onDidChange((usage, state) => {
+			this.render(usage, state);
 		});
-
-		return this.refreshInFlight;
 	}
 
-	private async doRefresh(): Promise<void> {
-		log('Refresh command started');
-
-		if (!(await this.auth.isAuthenticated())) {
-			this.stopAutoRefresh();
-			this.lastUsage = undefined;
-			this.showDisconnected();
-			void vscode.window.showWarningMessage(
-				'Cursor Stats: Not connected. Connect your account first.'
-			);
+	private render(usage: UsageModel | undefined, state: UsageServiceState): void {
+		if (state === 'disconnected') {
+			this.statusBarItem.text = DISCONNECTED_TEXT;
+			this.statusBarItem.tooltip = 'Connect your Cursor account';
+			this.statusBarItem.command = CONNECT_COMMAND;
 			return;
 		}
 
-		this.statusBarItem.text = REFRESHING_TEXT;
-		this.statusBarItem.command = REFRESH_COMMAND;
-
-		try {
-			const usage = await fetchIndividualUsage(this.auth);
-			this.lastUsage = usage;
-			this.showUsage(usage);
-			log(
-				`Usage updated: ${formatCentsAsUsd(usage.usedCents)} / ${formatCentsAsUsd(usage.limitCents)}`
-			);
-		} catch (error) {
-			logError('Refresh failed:', error);
-
-			if (this.lastUsage) {
-				this.showUsage(this.lastUsage);
-				return;
-			}
-
-			this.statusBarItem.text = '⚡ Usage unavailable';
-			this.statusBarItem.tooltip = 'Failed to load usage — click to retry';
-			this.statusBarItem.command = REFRESH_COMMAND;
+		if (state === 'loading' && !usage) {
+			this.statusBarItem.text = REFRESHING_TEXT;
+			this.statusBarItem.tooltip = 'Loading Cursor usage…';
+			this.statusBarItem.command = OPEN_INSIGHTS_COMMAND;
+			return;
 		}
-	}
 
-	private startAutoRefresh(): void {
-		this.stopAutoRefresh();
-		this.refreshTimer = setInterval(() => {
-			void this.refresh();
-		}, REFRESH_INTERVAL_MS);
-	}
-
-	private stopAutoRefresh(): void {
-		if (this.refreshTimer !== undefined) {
-			clearInterval(this.refreshTimer);
-			this.refreshTimer = undefined;
+		if (!usage) {
+			this.statusBarItem.text = UNAVAILABLE_TEXT;
+			this.statusBarItem.tooltip = 'Failed to load usage — click to open Cursor Insights';
+			this.statusBarItem.command = OPEN_INSIGHTS_COMMAND;
+			return;
 		}
-	}
 
-	private showDisconnected(): void {
-		this.statusBarItem.text = DISCONNECTED_TEXT;
-		this.statusBarItem.tooltip = 'Connect your Cursor account';
-		this.statusBarItem.command = CONNECT_COMMAND;
-	}
-
-	private showUsage(usage: IndividualOverallUsage): void {
 		const used = formatCentsAsUsd(usage.usedCents);
 		const limit = formatCentsAsUsd(usage.limitCents);
 		const remaining = formatCentsAsUsd(usage.remainingCents);
 		const cycleStart = formatBillingDay(usage.billingCycleStart);
 		const cycleEnd = formatBillingDay(usage.billingCycleEnd);
 
-		this.statusBarItem.text = `⚡ ${used} / ${limit}`;
+		this.statusBarItem.text = `💰 ${used}`;
 		this.statusBarItem.tooltip = [
-			'Cursor Stats',
+			'Cursor Insights',
 			'',
-			`Used: ${used}`,
-			`Limit: ${limit}`,
-			`Remaining: ${remaining}`,
+			'Monthly Usage',
 			'',
-			`Billing Cycle: ${cycleStart} → ${cycleEnd}`,
+			`Used:\n${used}`,
 			'',
-			'Click to refresh',
+			`Limit:\n${limit}`,
+			'',
+			`Remaining:\n${remaining}`,
+			'',
+			`Billing Cycle:\n${cycleStart} → ${cycleEnd}`,
+			'',
+			'Click to open Cursor Insights.',
 		].join('\n');
-		this.statusBarItem.command = REFRESH_COMMAND;
+		this.statusBarItem.command = OPEN_INSIGHTS_COMMAND;
 	}
 
 	dispose(): void {
-		this.stopAutoRefresh();
+		this.subscription.dispose();
 		this.statusBarItem.dispose();
 	}
 }

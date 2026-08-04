@@ -33,7 +33,7 @@ export class ManualSessionProvider implements AuthProvider {
 
 		try {
 			const token = await vscode.window.showInputBox({
-				title: 'Cursor Stats: Connect Account',
+				title: 'Cursor Insights: Connect Account',
 				prompt: 'Paste your WorkosCursorSessionToken',
 				placeHolder: 'WorkosCursorSessionToken',
 				password: true,

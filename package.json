@@ -1,7 +1,7 @@
 {
   "name": "cursor-stats",
-  "displayName": "Cursor Stats",
-  "description": "Shows Cursor usage in the status bar",
+  "displayName": "Cursor Insights",
+  "description": "Shows Cursor usage insights in the status bar and Explorer sidebar",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.125.0"
@@ -17,25 +17,42 @@
     "commands": [
       {
         "command": "cursor-stats.connect",
-        "title": "Cursor Stats: Connect Account"
+        "title": "Cursor Insights: Connect Account"
       },
       {
         "command": "cursor-stats.disconnect",
-        "title": "Cursor Stats: Disconnect Account"
+        "title": "Cursor Insights: Disconnect Account"
       },
       {
         "command": "cursor-stats.refresh",
-        "title": "Cursor Stats: Refresh"
+        "title": "Cursor Insights: Refresh"
+      },
+      {
+        "command": "cursor-stats.openInsights",
+        "title": "Cursor Insights: Open Sidebar"
+      },
+      {
+        "command": "cursor-stats.openDashboard",
+        "title": "Cursor Insights: Open Cursor Usage Dashboard"
       },
       {
         "command": "cursor-stats.dumpCookies",
-        "title": "Cursor Stats: Dump Cookies"
+        "title": "Cursor Insights: Dump Cookies"
       },
       {
         "command": "cursor-stats.showLogs",
-        "title": "Cursor Stats: Show Logs"
+        "title": "Cursor Insights: Show Logs"
       }
-    ]
+    ],
+    "views": {
+      "explorer": [
+        {
+          "type": "webview",
+          "id": "cursorInsights.sidebar",
+          "name": "Cursor Insights"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

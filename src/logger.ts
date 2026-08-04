@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-const CHANNEL_NAME = 'Cursor Stats';
+const CHANNEL_NAME = 'Cursor Insights';
 
 let outputChannel: vscode.OutputChannel | undefined;
 
@@ -24,7 +24,7 @@ function getOutput(): vscode.OutputChannel {
 	return outputChannel;
 }
 
-/** Reveals the Output panel with the Cursor Stats channel selected. */
+/** Reveals the Output panel with the Cursor Insights channel selected. */
 export function showLogs(): void {
 	getOutput().show(true);
 }
