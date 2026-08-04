@@ -26,9 +26,9 @@ Display your Cursor monthly usage in the status bar and a dedicated Explorer sid
 
 ## Status Bar
 
-Example:
+Example: `MTD - $19.04 / $200.00`
 
-MTD - $19.04 / $200.00
+![Cursor Insights status bar showing month-to-date usage](https://raw.githubusercontent.com/AjayReddy-18/cursor-insights/main/images/status-bar.png)
 
 Hover to view:
 
@@ -44,6 +44,8 @@ The **Cursor Insights** view in Explorer shows:
 - Monthly usage with progress bar and inline refresh
 - Open Cursor Usage Dashboard
 - Reconnect Account
+
+![Cursor Insights sidebar with monthly usage progress and actions](https://raw.githubusercontent.com/AjayReddy-18/cursor-insights/main/images/side-bar.png)
 
 ## Commands
 
