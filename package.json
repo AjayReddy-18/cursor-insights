@@ -42,12 +42,16 @@
   "contributes": {
     "commands": [
       {
+        "command": "cursor-insights.connect",
+        "title": "Cursor Insights: Connect Account"
+      },
+      {
         "command": "cursor-insights.refresh",
         "title": "Cursor Insights: Refresh"
       },
       {
         "command": "cursor-insights.openInsights",
-        "title": "Cursor Insights: Open Sidebar"
+        "title": "Cursor Insights: Open Cursor Insights"
       },
       {
         "command": "cursor-insights.openDashboard",
@@ -58,12 +62,21 @@
         "title": "Cursor Insights: Show Logs"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cursor-insights",
+          "title": "Cursor Insights",
+          "icon": "media/cursor-insights.svg"
+        }
+      ]
+    },
     "views": {
-      "explorer": [
+      "cursor-insights": [
         {
           "type": "webview",
-          "id": "cursorInsights.sidebar",
-          "name": "Cursor Insights"
+          "id": "cursorInsights.dashboard",
+          "name": "Dashboard"
         }
       ]
     },

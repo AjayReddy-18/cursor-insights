@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
 import { LocalCursorAuthProvider } from './auth/localCursorAuthProvider';
 import {
+	CONNECT_COMMAND,
 	INSIGHTS_VIEW_ID,
 	OPEN_DASHBOARD_COMMAND,
 	OPEN_INSIGHTS_COMMAND,
+	OPEN_INSIGHTS_CONTAINER_COMMAND,
 	REFRESH_COMMAND,
 	SHOW_LOGS_COMMAND,
 } from './commands';
@@ -26,29 +28,38 @@ export function activate(context: vscode.ExtensionContext): void {
 	const recentRequestsService = new RecentRequestsService(auth);
 	const highCostAlertService = new HighCostAlertService(auth);
 	const statusBar = new CursorInsightsStatusBar(usageService);
-	const sidebar = new InsightsViewProvider(usageService, recentRequestsService);
+	const dashboard = new InsightsViewProvider(usageService, recentRequestsService);
+
+	const refreshAll = async (): Promise<void> => {
+		await Promise.all([
+			usageService.refresh(),
+			recentRequestsService.refresh(),
+			highCostAlertService.initialize(),
+		]);
+	};
 
 	context.subscriptions.push(
 		usageService,
 		recentRequestsService,
 		highCostAlertService,
 		statusBar,
-		sidebar,
-		vscode.window.registerWebviewViewProvider(INSIGHTS_VIEW_ID, sidebar),
-		vscode.commands.registerCommand(REFRESH_COMMAND, async () => {
-			await Promise.all([
-				usageService.refresh(),
-				recentRequestsService.refresh(),
-				highCostAlertService.initialize(),
-			]);
+		dashboard,
+		vscode.window.registerWebviewViewProvider(INSIGHTS_VIEW_ID, dashboard),
+		vscode.commands.registerCommand(CONNECT_COMMAND, async () => {
+			await usageService.initialize();
+			if (await usageService.isAuthenticated()) {
+				await refreshAll();
+				return;
+			}
+			void vscode.window.showWarningMessage(
+				'Cursor Insights: Sign in to Cursor on this machine, then Connect Account again.'
+			);
 		}),
+		vscode.commands.registerCommand(REFRESH_COMMAND, () => refreshAll()),
 		vscode.commands.registerCommand(OPEN_INSIGHTS_COMMAND, async () => {
+			await vscode.commands.executeCommand(OPEN_INSIGHTS_CONTAINER_COMMAND);
 			await vscode.commands.executeCommand(`${INSIGHTS_VIEW_ID}.focus`);
-			await Promise.all([
-				usageService.refresh(),
-				recentRequestsService.refresh(),
-				highCostAlertService.initialize(),
-			]);
+			await refreshAll();
 		}),
 		vscode.commands.registerCommand(OPEN_DASHBOARD_COMMAND, () =>
 			openCursorUsageDashboard()

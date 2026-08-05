@@ -5,7 +5,7 @@ Display your Cursor monthly usage directly inside Cursor, along with recent requ
 ## Features
 
 - Status bar shows month-to-date usage (`MTD - $19.04 / $200.00`)
-- Explorer sidebar with:
+- Dedicated Activity Bar view with:
   - Monthly usage and progress bar
   - Recent Requests (last 3 requests with model and cost)
   - Configurable High Cost Alert threshold
@@ -40,8 +40,8 @@ Follow these steps in order.
 Cursor Insights reads the account already signed in on this machine.
 
 1. Make sure you are signed in to Cursor (Cursor Settings → Account).
-2. Open the Cursor Insights sidebar (or run **Cursor Insights: Refresh**).
-3. Your monthly usage will appear in the status bar and sidebar.
+2. Open **Cursor Insights** from the Activity Bar (or run **Cursor Insights: Open Cursor Insights**).
+3. If prompted, click **Connect Account**, then your monthly usage will appear in the status bar and dashboard.
 
 No browser cookie or session token is required.
 
@@ -57,13 +57,13 @@ Example:
 
 ![Cursor Insights status bar showing month-to-date usage](https://raw.githubusercontent.com/AjayReddy-18/cursor-insights/main/images/status-bar.png)
 
-Clicking the status bar opens the Cursor Insights sidebar.
+Clicking the status bar opens the Cursor Insights Activity Bar and focuses the Dashboard.
 
 ---
 
-# Sidebar
+# Dashboard
 
-The **Cursor Insights** Explorer view includes:
+The **Cursor Insights** Activity Bar dashboard includes:
 
 - Monthly usage with progress bar
 - Recent Requests (last 3 requests showing time, model and cost)
@@ -81,7 +81,7 @@ Cursor Insights continuously monitors your latest Cursor requests.
 
 If a single request costs more than your configured threshold, you'll receive a notification inside Cursor.
 
-The threshold is fully configurable from the sidebar (default: **$2.00**).
+The threshold is fully configurable from the dashboard (default: **$2.00**).
 
 For long-running or intentionally expensive chats, you can choose **Ignore this conversation** directly from the notification to suppress further alerts for the current conversation.
 
@@ -91,8 +91,9 @@ For long-running or intentionally expensive chats, you can choose **Ignore this 
 
 # Commands
 
+- Cursor Insights: Connect Account
 - Cursor Insights: Refresh
-- Cursor Insights: Open Sidebar
+- Cursor Insights: Open Cursor Insights
 - Cursor Insights: Open Cursor Usage Dashboard
 - Cursor Insights: Show Logs
 

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { formatBillingDay, formatCentsAsUsd } from '../api/format';
 import {
+	CONNECT_COMMAND,
 	CURSOR_USAGE_DASHBOARD_URL,
 	INSIGHTS_VIEW_ID,
 	OPEN_DASHBOARD_COMMAND,
@@ -23,10 +24,11 @@ import type { UsageService, UsageServiceState } from '../services/usageService';
 type WebviewMessage =
 	| { type: 'refresh' }
 	| { type: 'openDashboard' }
+	| { type: 'connect' }
 	| { type: 'setAlertThreshold'; value: number };
 
 /**
- * Explorer sidebar dashboard. Receives typed models from services —
+ * Cursor Insights Activity Bar dashboard. Receives typed models from services —
  * never calls the API directly.
  */
 export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
@@ -90,6 +92,9 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 				break;
 			case 'openDashboard':
 				await vscode.commands.executeCommand(OPEN_DASHBOARD_COMMAND);
+				break;
+			case 'connect':
+				await vscode.commands.executeCommand(CONNECT_COMMAND);
 				break;
 			case 'setAlertThreshold':
 				if (typeof message.value === 'number') {
@@ -353,6 +358,43 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			background: var(--vscode-input-background);
 			border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
 		}
+		.welcome {
+			display: flex;
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 10px;
+			padding: 8px 0;
+		}
+		.welcome-title {
+			margin: 0;
+			font-size: 16px;
+			font-weight: 600;
+			color: var(--vscode-foreground);
+		}
+		.welcome-copy {
+			margin: 0;
+			font-size: 13px;
+			color: var(--vscode-descriptionForeground);
+			line-height: 1.5;
+		}
+		.welcome-action {
+			margin: 4px 0 0;
+			padding: 6px 14px;
+			border: 1px solid var(--vscode-button-border, transparent);
+			border-radius: 2px;
+			background: var(--vscode-button-background);
+			color: var(--vscode-button-foreground);
+			font: inherit;
+			font-size: 13px;
+			cursor: pointer;
+		}
+		.welcome-action:hover {
+			background: var(--vscode-button-hoverBackground);
+		}
+		.welcome-action:focus {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: 2px;
+		}
 	</style>
 </head>
 <body>
@@ -402,12 +444,11 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 
 		if (state === 'disconnected') {
 			return `
-				<div class="section">
-					${this.headerRow(refreshing)}
-					<p class="status-msg">Sign in to Cursor on this machine, then Refresh.</p>
-				</div>
-				${this.alertThresholdSection()}
-				${this.actionsSection()}`;
+				<div class="welcome">
+					<p class="welcome-title">Cursor Insights</p>
+					<p class="welcome-copy">Monitor your Cursor usage directly inside Cursor.</p>
+					<button class="welcome-action" data-action="connect">Connect Account</button>
+				</div>`;
 		}
 
 		if (!usage) {

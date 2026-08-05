@@ -8,13 +8,18 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ### Changed
 
+- Moved Cursor Insights from the Explorer sidebar into a dedicated **Cursor Insights** Activity Bar container with a Dashboard view
 - Authentication now uses the local Cursor login (`state.vscdb` access token) instead of a manually pasted `WorkosCursorSessionToken`
-- Removed **Connect Account** and **Disconnect Account** commands and sidebar reconnect actions
+- **Connect Account** re-checks the local Cursor login instead of prompting for a session token
+- Removed **Reconnect Account** from the dashboard
 - Read Cursor credentials via `node:sqlite` (with `sqlite3` CLI fallback) so multi-GB `state.vscdb` files work
+- Status bar click opens the Cursor Insights Activity Bar and focuses the Dashboard
+- Disconnected state shows a welcome screen with **Connect Account**
 
 ### Removed
 
 - Manual session-token paste flow and Secret Storage for `WorkosCursorSessionToken`
+- Cursor Insights contribution under the Explorer view
 
 # 1.0.0
 

@@ -31,7 +31,7 @@ export class CursorInsightsStatusBar implements vscode.Disposable {
 		if (state === 'disconnected') {
 			this.statusBarItem.text = DISCONNECTED_TEXT;
 			this.statusBarItem.tooltip =
-				'Sign in to Cursor, then open Cursor Insights and Refresh';
+				'Sign in to Cursor, then open Cursor Insights and Connect Account';
 			this.statusBarItem.command = OPEN_INSIGHTS_COMMAND;
 			return;
 		}
