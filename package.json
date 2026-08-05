@@ -1,8 +1,8 @@
 {
   "name": "cursor-insights",
   "displayName": "Cursor Insights",
-  "description": "Shows Cursor usage insights in the status bar and Explorer sidebar",
-  "version": "0.0.3",
+  "description": "Monitor Cursor AI usage, recent requests and high-cost request alerts directly inside Cursor.",
+  "version": "1.0.0",
   "publisher": "ajayreddy",
   "author": {
     "name": "Ajay Reddy",
@@ -19,12 +19,15 @@
   },
   "keywords": [
     "cursor",
+    "cursor ai",
+    "cursor usage",
     "usage",
     "billing",
     "cost",
+    "dashboard",
+    "tokens",
     "insights",
-    "status bar",
-    "alerts"
+    "ai"
   ],
   "engines": {
     "vscode": "^1.90.0"

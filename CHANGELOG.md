@@ -4,6 +4,21 @@ All notable changes to the "Cursor Insights" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+# 1.0.0
+
+## Initial Public Release
+
+### Added
+
+- Month-to-date usage in the status bar
+- Cursor Insights Explorer sidebar
+- Monthly usage progress bar
+- Recent Requests (last 3 requests)
+- Configurable High Cost Request Alerts
+- Ignore alerts for the current conversation
+- One-click refresh
+- Secure authentication using WorkosCursorSessionToken
+
 ## [0.0.3]
 
 ### Changed
