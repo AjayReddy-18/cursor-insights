@@ -1,9 +1,8 @@
 /**
- * Pluggable authentication. Swap ManualSessionProvider for Cursor CLI or OAuth later
- * without changing the API client or status bar.
+ * Pluggable authentication for Cursor API requests.
  */
 export interface AuthProvider {
-	/** Whether a usable session is currently stored. */
+	/** Whether a usable Cursor login is available on this machine. */
 	isAuthenticated(): Promise<boolean>;
 
 	/**
@@ -11,13 +10,4 @@ export interface AuthProvider {
 	 * Implementations must never log secret values.
 	 */
 	getAuthHeaders(): Promise<Record<string, string>>;
-
-	/**
-	 * Interactive connect flow.
-	 * @returns true if authentication succeeded and a session is stored.
-	 */
-	connect(): Promise<boolean>;
-
-	/** Clear any stored session. */
-	disconnect(): Promise<void>;
 }

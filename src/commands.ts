@@ -1,6 +1,4 @@
 /** Command IDs — keep the `cursor-insights.*` prefix (extension identifier). */
-export const CONNECT_COMMAND = 'cursor-insights.connect';
-export const DISCONNECT_COMMAND = 'cursor-insights.disconnect';
 export const REFRESH_COMMAND = 'cursor-insights.refresh';
 export const OPEN_INSIGHTS_COMMAND = 'cursor-insights.openInsights';
 export const OPEN_DASHBOARD_COMMAND = 'cursor-insights.openDashboard';

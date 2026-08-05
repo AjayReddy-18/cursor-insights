@@ -54,18 +54,6 @@ export class RecentRequestsService implements vscode.Disposable {
 		});
 	}
 
-	/** Call after a successful account connect. */
-	async onConnected(): Promise<void> {
-		this.resetSessionState();
-		await this.refresh();
-	}
-
-	/** Call after account disconnect. */
-	onDisconnected(): void {
-		this.resetSessionState();
-		this.setState([], 'disconnected');
-	}
-
 	async refresh(): Promise<RecentRequest[]> {
 		if (this.refreshInFlight) {
 			return this.refreshInFlight;

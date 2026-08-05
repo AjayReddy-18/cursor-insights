@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import { formatBillingDay, formatCentsAsUsd } from './api/format';
-import { CONNECT_COMMAND, OPEN_INSIGHTS_COMMAND } from './commands';
+import { OPEN_INSIGHTS_COMMAND } from './commands';
 import type { UsageModel } from './models/usageModel';
 import type { UsageService, UsageServiceState } from './services/usageService';
 
-const DISCONNECTED_TEXT = 'Connect Cursor';
+const DISCONNECTED_TEXT = 'Sign in to Cursor';
 const REFRESHING_TEXT = 'MTD - …';
 const UNAVAILABLE_TEXT = 'MTD - unavailable';
 
@@ -30,8 +30,9 @@ export class CursorInsightsStatusBar implements vscode.Disposable {
 	private render(usage: UsageModel | undefined, state: UsageServiceState): void {
 		if (state === 'disconnected') {
 			this.statusBarItem.text = DISCONNECTED_TEXT;
-			this.statusBarItem.tooltip = 'Connect your Cursor account';
-			this.statusBarItem.command = CONNECT_COMMAND;
+			this.statusBarItem.tooltip =
+				'Sign in to Cursor, then open Cursor Insights and Refresh';
+			this.statusBarItem.command = OPEN_INSIGHTS_COMMAND;
 			return;
 		}
 

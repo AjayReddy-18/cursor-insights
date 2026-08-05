@@ -36,34 +36,17 @@ export class HighCostAlertService implements vscode.Disposable {
 			return;
 		}
 
+		// Already polling after a prior successful init / refresh.
+		if (this.pollTimer !== undefined) {
+			return;
+		}
+
 		await this.poll({ bootstrap: true });
 		this.startPolling();
-	}
-
-	/** Call after a successful account connect. */
-	async onConnected(): Promise<void> {
-		this.resetSessionState();
-		await this.poll({ bootstrap: true });
-		this.startPolling();
-	}
-
-	/** Call after account disconnect. */
-	onDisconnected(): void {
-		this.stopPolling();
-		this.resetSessionState();
 	}
 
 	dispose(): void {
 		this.stopPolling();
-		this.ignoredConversations.clear();
-	}
-
-	private resetSessionState(): void {
-		this.lastProcessedId = undefined;
-		this.initialized = false;
-		this.teamId = undefined;
-		this.billingCycleStart = undefined;
-		this.billingCycleEnd = undefined;
 		this.ignoredConversations.clear();
 	}
 

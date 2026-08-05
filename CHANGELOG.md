@@ -4,6 +4,18 @@ All notable changes to the "Cursor Insights" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+# Unreleased
+
+### Changed
+
+- Authentication now uses the local Cursor login (`state.vscdb` access token) instead of a manually pasted `WorkosCursorSessionToken`
+- Removed **Connect Account** and **Disconnect Account** commands and sidebar reconnect actions
+- Read Cursor credentials via `node:sqlite` (with `sqlite3` CLI fallback) so multi-GB `state.vscdb` files work
+
+### Removed
+
+- Manual session-token paste flow and Secret Storage for `WorkosCursorSessionToken`
+
 # 1.0.0
 
 ## Initial Public Release

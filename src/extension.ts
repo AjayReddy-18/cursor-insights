@@ -1,8 +1,6 @@
 import * as vscode from 'vscode';
-import { ManualSessionProvider } from './auth/manualSessionProvider';
+import { LocalCursorAuthProvider } from './auth/localCursorAuthProvider';
 import {
-	CONNECT_COMMAND,
-	DISCONNECT_COMMAND,
 	INSIGHTS_VIEW_ID,
 	OPEN_DASHBOARD_COMMAND,
 	OPEN_INSIGHTS_COMMAND,
@@ -23,8 +21,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	initLogger(context);
 	log('Extension activated');
 
-	// Swap ManualSessionProvider for Cursor CLI / OAuth later without changing the rest.
-	const auth = new ManualSessionProvider(context.secrets);
+	const auth = new LocalCursorAuthProvider();
 	const usageService = new UsageService(auth);
 	const recentRequestsService = new RecentRequestsService(auth);
 	const highCostAlertService = new HighCostAlertService(auth);
@@ -38,22 +35,11 @@ export function activate(context: vscode.ExtensionContext): void {
 		statusBar,
 		sidebar,
 		vscode.window.registerWebviewViewProvider(INSIGHTS_VIEW_ID, sidebar),
-		vscode.commands.registerCommand(CONNECT_COMMAND, async () => {
-			const connected = await usageService.connect();
-			if (connected) {
-				await highCostAlertService.onConnected();
-				await recentRequestsService.onConnected();
-			}
-		}),
-		vscode.commands.registerCommand(DISCONNECT_COMMAND, async () => {
-			highCostAlertService.onDisconnected();
-			recentRequestsService.onDisconnected();
-			await usageService.disconnect();
-		}),
 		vscode.commands.registerCommand(REFRESH_COMMAND, async () => {
 			await Promise.all([
 				usageService.refresh(),
 				recentRequestsService.refresh(),
+				highCostAlertService.initialize(),
 			]);
 		}),
 		vscode.commands.registerCommand(OPEN_INSIGHTS_COMMAND, async () => {
@@ -61,6 +47,7 @@ export function activate(context: vscode.ExtensionContext): void {
 			await Promise.all([
 				usageService.refresh(),
 				recentRequestsService.refresh(),
+				highCostAlertService.initialize(),
 			]);
 		}),
 		vscode.commands.registerCommand(OPEN_DASHBOARD_COMMAND, () =>

@@ -9,11 +9,11 @@ Display your Cursor monthly usage directly inside Cursor, along with recent requ
   - Monthly usage and progress bar
   - Recent Requests (last 3 requests with model and cost)
   - Configurable High Cost Alert threshold
-  - Quick actions (Refresh, Open Usage Dashboard, Reconnect Account)
+  - Quick actions (Refresh, Open Usage Dashboard)
 - Automatic monthly usage refresh every 60 seconds
 - High Cost Request Alerts notify you whenever a single Cursor request exceeds your configured threshold
 - Option to ignore alerts for the current conversation
-- Securely stores your `WorkosCursorSessionToken` using VS Code Secret Storage
+- Uses your existing Cursor login on this machine (no token paste)
 - Click the status bar to open Cursor Insights
 
 ## Install and Setup (Step by Step)
@@ -23,7 +23,7 @@ Follow these steps in order.
 ### 1) Download the `.vsix` from GitHub
 
 1. Open this repository's **Releases** page.
-2. Download the latest `.vsix` asset (for example: `cursor-insights-0.1.0.vsix`).
+2. Download the latest `.vsix` asset (for example, `cursor-insights-1.0.0.vsix`).
 
 ### 2) Install the extension
 
@@ -35,28 +35,15 @@ Follow these steps in order.
 4. Select the downloaded `.vsix`.
 5. Reload Cursor if prompted.
 
-### 3) Connect your Cursor account
+### 3) Sign in to Cursor
 
-1. Run **Cursor Insights: Connect Account** (or click the prompt shown after installation).
-2. Paste your `WorkosCursorSessionToken` when prompted.
+Cursor Insights reads the account already signed in on this machine.
 
-### 4) Obtain `WorkosCursorSessionToken`
+1. Make sure you are signed in to Cursor (Cursor Settings → Account).
+2. Open the Cursor Insights sidebar (or run **Cursor Insights: Refresh**).
+3. Your monthly usage will appear in the status bar and sidebar.
 
-1. Open the Cursor Usage Dashboard in your browser and sign in.
-2. Open Developer Tools.
-3. Navigate to:
-
-   **Application → Cookies → cursor.com**
-
-4. Copy the value of:
-
-   `WorkosCursorSessionToken`
-
-### 5) Complete setup
-
-1. Return to Cursor.
-2. Paste the copied token.
-3. Your monthly usage will now appear in both the status bar and the Cursor Insights sidebar.
+No browser cookie or session token is required.
 
 ---
 
@@ -83,7 +70,6 @@ The **Cursor Insights** Explorer view includes:
 - Configurable High Cost Alert threshold slider
 - Refresh monthly usage and recent requests
 - Open Cursor Usage Dashboard
-- Reconnect Account
 
 ![Cursor Insights sidebar showing monthly usage, recent requests and alert threshold](https://raw.githubusercontent.com/AjayReddy-18/cursor-insights/main/images/side-bar.png)
 
@@ -105,9 +91,12 @@ For long-running or intentionally expensive chats, you can choose **Ignore this 
 
 # Commands
 
-- Cursor Insights: Connect Account
-- Cursor Insights: Disconnect Account
 - Cursor Insights: Refresh
 - Cursor Insights: Open Sidebar
 - Cursor Insights: Open Cursor Usage Dashboard
 - Cursor Insights: Show Logs
+
+# Requirements
+
+- Cursor must be signed in on this machine
+- Network access to `cursor.com`

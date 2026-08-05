@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { formatBillingDay, formatCentsAsUsd } from '../api/format';
 import {
-	CONNECT_COMMAND,
 	CURSOR_USAGE_DASHBOARD_URL,
 	INSIGHTS_VIEW_ID,
 	OPEN_DASHBOARD_COMMAND,
@@ -24,7 +23,6 @@ import type { UsageService, UsageServiceState } from '../services/usageService';
 type WebviewMessage =
 	| { type: 'refresh' }
 	| { type: 'openDashboard' }
-	| { type: 'reconnect' }
 	| { type: 'setAlertThreshold'; value: number };
 
 /**
@@ -92,9 +90,6 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 				break;
 			case 'openDashboard':
 				await vscode.commands.executeCommand(OPEN_DASHBOARD_COMMAND);
-				break;
-			case 'reconnect':
-				await vscode.commands.executeCommand(CONNECT_COMMAND);
 				break;
 			case 'setAlertThreshold':
 				if (typeof message.value === 'number') {
@@ -408,17 +403,11 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 		if (state === 'disconnected') {
 			return `
 				<div class="section">
-					<div class="header-row">
-						<p class="section-title">Monthly Usage</p>
-					</div>
-					<p class="status-msg">Connect your Cursor account to see usage.</p>
+					${this.headerRow(refreshing)}
+					<p class="status-msg">Sign in to Cursor on this machine, then Refresh.</p>
 				</div>
 				${this.alertThresholdSection()}
-				<div class="section">
-					<div class="actions">
-						<button class="link-action" data-action="reconnect">Connect Account</button>
-					</div>
-				</div>`;
+				${this.actionsSection()}`;
 		}
 
 		if (!usage) {
@@ -549,7 +538,6 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			<div class="section">
 				<div class="actions">
 					<button class="link-action" data-action="openDashboard">Open Cursor Usage Dashboard</button>
-					<button class="link-action" data-action="reconnect">Reconnect Account</button>
 				</div>
 			</div>`;
 	}

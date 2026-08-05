@@ -48,30 +48,10 @@ export class UsageService implements vscode.Disposable {
 	async initialize(): Promise<void> {
 		if (await this.auth.isAuthenticated()) {
 			await this.refresh();
-			this.startAutoRefresh();
 			return;
 		}
 
 		this.setState(undefined, 'disconnected');
-	}
-
-	async connect(): Promise<boolean> {
-		const connected = await this.auth.connect();
-		if (!connected) {
-			this.setState(undefined, 'disconnected');
-			return false;
-		}
-
-		await this.refresh();
-		this.startAutoRefresh();
-		return true;
-	}
-
-	async disconnect(): Promise<void> {
-		this.stopAutoRefresh();
-		await this.auth.disconnect();
-		this.setState(undefined, 'disconnected');
-		void vscode.window.showInformationMessage('Cursor Insights: Account disconnected');
 	}
 
 	async isAuthenticated(): Promise<boolean> {
@@ -97,7 +77,7 @@ export class UsageService implements vscode.Disposable {
 			this.stopAutoRefresh();
 			this.setState(undefined, 'disconnected');
 			void vscode.window.showWarningMessage(
-				'Cursor Insights: Not connected. Connect your account first.'
+				'Cursor Insights: Sign in to Cursor, then Refresh.'
 			);
 			return undefined;
 		}
@@ -108,6 +88,7 @@ export class UsageService implements vscode.Disposable {
 			const raw = await fetchIndividualUsage(this.auth);
 			const model = toUsageModel(raw);
 			this.setState(model, 'ready');
+			this.startAutoRefresh();
 			log(
 				`Usage updated: ${formatCentsAsUsd(model.usedCents)} / ${formatCentsAsUsd(model.limitCents)}`
 			);
