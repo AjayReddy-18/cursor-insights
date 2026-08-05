@@ -1,10 +1,33 @@
 {
-  "name": "cursor-stats",
+  "name": "cursor-insights",
   "displayName": "Cursor Insights",
   "description": "Shows Cursor usage insights in the status bar and Explorer sidebar",
   "version": "0.0.3",
+  "publisher": "ajayreddy",
+  "author": {
+    "name": "Ajay Reddy",
+    "email": "iamajayreddy18@gmail.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AjayReddy-18/cursor-insights.git"
+  },
+  "homepage": "https://github.com/AjayReddy-18/cursor-insights#readme",
+  "bugs": {
+    "url": "https://github.com/AjayReddy-18/cursor-insights/issues"
+  },
+  "keywords": [
+    "cursor",
+    "usage",
+    "billing",
+    "cost",
+    "insights",
+    "status bar",
+    "alerts"
+  ],
   "engines": {
-    "vscode": "^1.125.0"
+    "vscode": "^1.90.0"
   },
   "categories": [
     "Other"
@@ -16,36 +39,28 @@
   "contributes": {
     "commands": [
       {
-        "command": "cursor-stats.connect",
+        "command": "cursor-insights.connect",
         "title": "Cursor Insights: Connect Account"
       },
       {
-        "command": "cursor-stats.disconnect",
+        "command": "cursor-insights.disconnect",
         "title": "Cursor Insights: Disconnect Account"
       },
       {
-        "command": "cursor-stats.refresh",
+        "command": "cursor-insights.refresh",
         "title": "Cursor Insights: Refresh"
       },
       {
-        "command": "cursor-stats.openInsights",
+        "command": "cursor-insights.openInsights",
         "title": "Cursor Insights: Open Sidebar"
       },
       {
-        "command": "cursor-stats.openDashboard",
+        "command": "cursor-insights.openDashboard",
         "title": "Cursor Insights: Open Cursor Usage Dashboard"
       },
       {
-        "command": "cursor-stats.dumpCookies",
-        "title": "Cursor Insights: Dump Cookies"
-      },
-      {
-        "command": "cursor-stats.showLogs",
+        "command": "cursor-insights.showLogs",
         "title": "Cursor Insights: Show Logs"
-      },
-      {
-        "command": "cursor-stats.testHighCostAlert",
-        "title": "Cursor Insights: Test High Cost Alert"
       }
     ],
     "views": {
@@ -85,7 +100,7 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.125.0",
+    "@types/vscode": "^1.90.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "24.x",
     "typescript-eslint": "^8.61.1",

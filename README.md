@@ -111,4 +111,3 @@ For long-running or intentionally expensive chats, you can choose **Ignore this 
 - Cursor Insights: Open Sidebar
 - Cursor Insights: Open Cursor Usage Dashboard
 - Cursor Insights: Show Logs
-- Cursor Insights: Test High Cost Alert

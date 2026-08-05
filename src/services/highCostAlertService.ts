@@ -53,20 +53,6 @@ export class HighCostAlertService implements vscode.Disposable {
 		this.resetSessionState();
 	}
 
-	/**
-	 * Dev/test: show a high-cost alert with mock data (no API call).
-	 * Reuses the same notification flow as real usage events.
-	 */
-	async triggerTestAlert(): Promise<void> {
-		const event: UsageEvent = {
-			timestamp: String(Date.now()),
-			conversationId: 'test-conversation',
-			chargedCents: 999,
-			model: 'Claude Opus 5',
-		};
-		await this.showAlert(event, getAlertThreshold());
-	}
-
 	dispose(): void {
 		this.stopPolling();
 		this.ignoredConversations.clear();

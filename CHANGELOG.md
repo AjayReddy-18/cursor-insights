@@ -4,11 +4,17 @@ All notable changes to the "Cursor Insights" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [Unreleased]
+## [0.0.3]
 
 ### Changed
 
-- Renamed the extension from **Cursor Stats** to **Cursor Insights**
+- Renamed extension package and command IDs from `cursor-stats` to `cursor-insights`
+- Removed development-only commands (`Dump Cookies`, `Test High Cost Alert`) from the Command Palette
+- Added marketplace metadata: publisher, license, repository, keywords, and author
+
+### Changed (from Unreleased)
+
+- Renamed the extension display name from **Cursor Stats** to **Cursor Insights**
 - Moved the status bar item to the left (near the Git branch)
 - Status bar shows `MTD - $used / $limit`; details remain in the tooltip
 - Clicking the status bar opens the Cursor Insights sidebar and refreshes usage
@@ -20,3 +26,4 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Progress bar and percentage for monthly usage
 - Inline ⟳ refresh action on the Monthly Usage header
 - Quick actions: Open Cursor Usage Dashboard, Reconnect Account
+- MIT `LICENSE` for marketplace publishing

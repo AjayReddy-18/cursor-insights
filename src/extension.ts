@@ -3,15 +3,12 @@ import { ManualSessionProvider } from './auth/manualSessionProvider';
 import {
 	CONNECT_COMMAND,
 	DISCONNECT_COMMAND,
-	DUMP_COOKIES_COMMAND,
 	INSIGHTS_VIEW_ID,
 	OPEN_DASHBOARD_COMMAND,
 	OPEN_INSIGHTS_COMMAND,
 	REFRESH_COMMAND,
 	SHOW_LOGS_COMMAND,
-	TEST_HIGH_COST_ALERT_COMMAND,
 } from './commands';
-import { dumpCookies } from './dumpCookies';
 import { initLogger, log, showLogs } from './logger';
 import { HighCostAlertService } from './services/highCostAlertService';
 import { RecentRequestsService } from './services/recentRequestsService';
@@ -69,11 +66,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand(OPEN_DASHBOARD_COMMAND, () =>
 			openCursorUsageDashboard()
 		),
-		vscode.commands.registerCommand(DUMP_COOKIES_COMMAND, () => dumpCookies()),
-		vscode.commands.registerCommand(SHOW_LOGS_COMMAND, () => showLogs()),
-		vscode.commands.registerCommand(TEST_HIGH_COST_ALERT_COMMAND, () =>
-			highCostAlertService.triggerTestAlert()
-		)
+		vscode.commands.registerCommand(SHOW_LOGS_COMMAND, () => showLogs())
 	);
 
 	void usageService.initialize();
