@@ -71,7 +71,7 @@ The **Cursor Insights** Activity Bar dashboard includes:
 - Refresh monthly usage and recent requests
 - Open Cursor Usage Dashboard
 
-![Cursor Insights sidebar showing monthly usage, recent requests and alert threshold](https://raw.githubusercontent.com/AjayReddy-18/cursor-insights/main/images/side-bar.png)
+![Cursor Insights sidebar showing monthly usage, recent requests and alert threshold](https://raw.githubusercontent.com/AjayReddy-18/cursor-insights/main/images/activity-bar.png)
 
 ---
 
