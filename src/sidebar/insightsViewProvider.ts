@@ -13,7 +13,12 @@ import {
 	getAlertThreshold,
 	setAlertThreshold,
 } from '../config';
+import type { RecentRequest } from '../models/recentRequest';
 import type { UsageModel } from '../models/usageModel';
+import type {
+	RecentRequestsService,
+	RecentRequestsServiceState,
+} from '../services/recentRequestsService';
 import type { UsageService, UsageServiceState } from '../services/usageService';
 
 type WebviewMessage =
@@ -23,19 +28,27 @@ type WebviewMessage =
 	| { type: 'setAlertThreshold'; value: number };
 
 /**
- * Explorer sidebar dashboard. Receives a typed UsageModel from UsageService —
+ * Explorer sidebar dashboard. Receives typed models from services —
  * never calls the API directly.
  */
 export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
 	public static readonly viewType = INSIGHTS_VIEW_ID;
 
 	private view: vscode.WebviewView | undefined;
-	private readonly subscription: vscode.Disposable;
+	private readonly subscriptions: vscode.Disposable[] = [];
 
-	constructor(private readonly usageService: UsageService) {
-		this.subscription = this.usageService.onDidChange((usage, state) => {
-			this.render(usage, state);
-		});
+	constructor(
+		private readonly usageService: UsageService,
+		private readonly recentRequestsService: RecentRequestsService
+	) {
+		this.subscriptions.push(
+			this.usageService.onDidChange(() => {
+				this.renderCurrent();
+			}),
+			this.recentRequestsService.onDidChange(() => {
+				this.renderCurrent();
+			})
+		);
 	}
 
 	resolveWebviewView(
@@ -53,7 +66,23 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			void this.handleMessage(message);
 		});
 
-		this.render(this.usageService.getCurrentUsage(), this.usageService.getState());
+		webviewView.onDidChangeVisibility(() => {
+			if (webviewView.visible) {
+				void this.recentRequestsService.refresh();
+			}
+		});
+
+		this.renderCurrent();
+		void this.recentRequestsService.refresh();
+	}
+
+	private renderCurrent(): void {
+		this.render(
+			this.usageService.getCurrentUsage(),
+			this.usageService.getState(),
+			this.recentRequestsService.getRequests(),
+			this.recentRequestsService.getState()
+		);
 	}
 
 	private async handleMessage(message: WebviewMessage): Promise<void> {
@@ -75,18 +104,31 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 		}
 	}
 
-	private render(usage: UsageModel | undefined, state: UsageServiceState): void {
+	private render(
+		usage: UsageModel | undefined,
+		state: UsageServiceState,
+		requests: RecentRequest[],
+		requestsState: RecentRequestsServiceState
+	): void {
 		if (!this.view) {
 			return;
 		}
 
-		this.view.webview.html = this.getHtml(this.view.webview, usage, state);
+		this.view.webview.html = this.getHtml(
+			this.view.webview,
+			usage,
+			state,
+			requests,
+			requestsState
+		);
 	}
 
 	private getHtml(
 		webview: vscode.Webview,
 		usage: UsageModel | undefined,
-		state: UsageServiceState
+		state: UsageServiceState,
+		requests: RecentRequest[],
+		requestsState: RecentRequestsServiceState
 	): string {
 		const nonce = getNonce();
 		const csp = [
@@ -95,7 +137,7 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			`script-src 'nonce-${nonce}'`,
 		].join('; ');
 
-		const body = this.getBody(usage, state);
+		const body = this.getBody(usage, state, requests, requestsState);
 
 		return `<!DOCTYPE html>
 <html lang="en">
@@ -196,6 +238,39 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			width: 0%;
 			transition: width 0.25s ease;
 		}
+		.request-list {
+			margin: 0;
+			padding: 0;
+		}
+		.request-row {
+			padding: 10px 0;
+			border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-widget-border, rgba(128,128,128,0.25)));
+		}
+		.request-row:first-child {
+			padding-top: 2px;
+		}
+		.request-row:last-child {
+			padding-bottom: 0;
+			border-bottom: none;
+		}
+		.request-time {
+			margin: 0 0 2px;
+			font-size: 12px;
+			color: var(--vscode-descriptionForeground);
+			font-variant-numeric: tabular-nums;
+		}
+		.request-model {
+			margin: 0 0 2px;
+			font-size: 13px;
+			color: var(--vscode-foreground);
+			word-break: break-word;
+		}
+		.request-cost {
+			margin: 0;
+			font-size: 13px;
+			font-variant-numeric: tabular-nums;
+			color: var(--vscode-foreground);
+		}
 		.actions {
 			display: flex;
 			flex-direction: column;
@@ -281,8 +356,13 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 </html>`;
 	}
 
-	private getBody(usage: UsageModel | undefined, state: UsageServiceState): string {
-		const refreshing = state === 'loading';
+	private getBody(
+		usage: UsageModel | undefined,
+		state: UsageServiceState,
+		requests: RecentRequest[],
+		requestsState: RecentRequestsServiceState
+	): string {
+		const refreshing = state === 'loading' || requestsState === 'loading';
 
 		if (state === 'disconnected') {
 			return `
@@ -311,6 +391,7 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 					${this.headerRow(refreshing)}
 					<p class="status-msg${errorClass}">${escapeHtml(msg)}</p>
 				</div>
+				${this.recentRequestsSection(requests, requestsState)}
 				${this.alertThresholdSection()}
 				${this.actionsSection()}`;
 		}
@@ -335,6 +416,7 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 				<p class="meta">Resets ${escapeHtml(resets)}</p>
 				${errorNote}
 			</div>
+			${this.recentRequestsSection(requests, requestsState)}
 			${this.alertThresholdSection()}
 			${this.actionsSection()}`;
 	}
@@ -346,6 +428,48 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			<div class="header-row">
 				<p class="section-title">Monthly Usage</p>
 				<button class="refresh-action${spinClass}" data-action="refresh" title="Refresh"${disabled} aria-label="Refresh">⟳</button>
+			</div>`;
+	}
+
+	private recentRequestsSection(
+		requests: RecentRequest[],
+		requestsState: RecentRequestsServiceState
+	): string {
+		if (requestsState === 'disconnected') {
+			return '';
+		}
+
+		let body: string;
+		if (requestsState === 'loading' && requests.length === 0) {
+			body = `<p class="status-msg">Loading…</p>`;
+		} else if (requestsState === 'error' && requests.length === 0) {
+			body = `<p class="status-msg error">Failed to load recent requests.</p>`;
+		} else if (requests.length === 0) {
+			body = `<p class="status-msg">No recent requests found.</p>`;
+		} else {
+			const rows = requests
+				.map(
+					(request) => `
+				<div class="request-row">
+					<p class="request-time">${escapeHtml(request.time)}</p>
+					<p class="request-model">${escapeHtml(request.model)}</p>
+					<p class="request-cost">${escapeHtml(request.cost)}</p>
+				</div>`
+				)
+				.join('');
+			body = `<div class="request-list">${rows}</div>`;
+		}
+
+		const errorNote =
+			requestsState === 'error' && requests.length > 0
+				? `<p class="status-msg error">Last refresh failed — showing cached data.</p>`
+				: '';
+
+		return `
+			<div class="section">
+				<p class="section-title">Recent Requests</p>
+				${body}
+				${errorNote}
 			</div>`;
 	}
 
@@ -380,7 +504,9 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 	}
 
 	dispose(): void {
-		this.subscription.dispose();
+		for (const subscription of this.subscriptions) {
+			subscription.dispose();
+		}
 	}
 }
 

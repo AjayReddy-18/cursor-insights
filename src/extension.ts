@@ -13,6 +13,7 @@ import {
 import { dumpCookies } from './dumpCookies';
 import { initLogger, log, showLogs } from './logger';
 import { HighCostAlertService } from './services/highCostAlertService';
+import { RecentRequestsService } from './services/recentRequestsService';
 import { UsageService } from './services/usageService';
 import {
 	InsightsViewProvider,
@@ -27,12 +28,14 @@ export function activate(context: vscode.ExtensionContext): void {
 	// Swap ManualSessionProvider for Cursor CLI / OAuth later without changing the rest.
 	const auth = new ManualSessionProvider(context.secrets);
 	const usageService = new UsageService(auth);
+	const recentRequestsService = new RecentRequestsService(auth);
 	const highCostAlertService = new HighCostAlertService(auth);
 	const statusBar = new CursorInsightsStatusBar(usageService);
-	const sidebar = new InsightsViewProvider(usageService);
+	const sidebar = new InsightsViewProvider(usageService, recentRequestsService);
 
 	context.subscriptions.push(
 		usageService,
+		recentRequestsService,
 		highCostAlertService,
 		statusBar,
 		sidebar,
@@ -41,16 +44,26 @@ export function activate(context: vscode.ExtensionContext): void {
 			const connected = await usageService.connect();
 			if (connected) {
 				await highCostAlertService.onConnected();
+				await recentRequestsService.onConnected();
 			}
 		}),
 		vscode.commands.registerCommand(DISCONNECT_COMMAND, async () => {
 			highCostAlertService.onDisconnected();
+			recentRequestsService.onDisconnected();
 			await usageService.disconnect();
 		}),
-		vscode.commands.registerCommand(REFRESH_COMMAND, () => usageService.refresh()),
+		vscode.commands.registerCommand(REFRESH_COMMAND, async () => {
+			await Promise.all([
+				usageService.refresh(),
+				recentRequestsService.refresh(),
+			]);
+		}),
 		vscode.commands.registerCommand(OPEN_INSIGHTS_COMMAND, async () => {
 			await vscode.commands.executeCommand(`${INSIGHTS_VIEW_ID}.focus`);
-			await usageService.refresh();
+			await Promise.all([
+				usageService.refresh(),
+				recentRequestsService.refresh(),
+			]);
 		}),
 		vscode.commands.registerCommand(OPEN_DASHBOARD_COMMAND, () =>
 			openCursorUsageDashboard()

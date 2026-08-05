@@ -71,18 +71,25 @@ export function parseTeamId(data: unknown): number {
 	return requireNumber(first.id, 'teams[0].id');
 }
 
+export type FilteredUsageEventsParams = {
+	teamId: number;
+	billingCycleStart: Date;
+	billingCycleEnd: Date;
+	page?: number;
+	pageSize?: number;
+};
+
 /**
- * Fetches only the latest usage event for the current billing cycle.
+ * Fetches filtered usage events for the current billing cycle.
  */
-export async function fetchLatestUsageEvent(
+export async function fetchFilteredUsageEvents(
 	auth: AuthProvider,
-	params: {
-		teamId: number;
-		billingCycleStart: Date;
-		billingCycleEnd: Date;
-	}
-): Promise<UsageEvent | undefined> {
-	log(`API request started: POST ${FILTERED_USAGE_EVENTS_URL}`);
+	params: FilteredUsageEventsParams
+): Promise<UsageEvent[]> {
+	const page = params.page ?? 1;
+	const pageSize = params.pageSize ?? 5;
+
+	log(`API request started: POST ${FILTERED_USAGE_EVENTS_URL} (pageSize=${pageSize})`);
 
 	try {
 		const authHeaders = await auth.getAuthHeaders();
@@ -97,8 +104,8 @@ export async function fetchLatestUsageEvent(
 				teamId: params.teamId,
 				startDate: params.billingCycleStart.getTime(),
 				endDate: params.billingCycleEnd.getTime(),
-				page: 1,
-				pageSize: 1,
+				page,
+				pageSize,
 			}),
 		});
 
@@ -109,26 +116,54 @@ export async function fetchLatestUsageEvent(
 		}
 
 		const data: unknown = await response.json();
-		return parseLatestUsageEvent(data);
+		return parseUsageEvents(data);
 	} catch (error) {
-		logError('Failed to fetch latest usage event:', error);
+		logError('Failed to fetch filtered usage events:', error);
 		throw error;
 	}
 }
 
-export function parseLatestUsageEvent(data: unknown): UsageEvent | undefined {
+/**
+ * Fetches only the latest usage event for the current billing cycle.
+ */
+export async function fetchLatestUsageEvent(
+	auth: AuthProvider,
+	params: {
+		teamId: number;
+		billingCycleStart: Date;
+		billingCycleEnd: Date;
+	}
+): Promise<UsageEvent | undefined> {
+	const events = await fetchFilteredUsageEvents(auth, {
+		...params,
+		page: 1,
+		pageSize: 1,
+	});
+	return events[0];
+}
+
+export function parseUsageEvents(data: unknown): UsageEvent[] {
 	if (!isRecord(data)) {
 		throw new Error('Invalid filtered-usage-events response: expected an object');
 	}
 
 	const events = data.usageEventsDisplay;
 	if (!Array.isArray(events) || events.length === 0) {
-		return undefined;
+		return [];
 	}
 
-	const raw = events[0];
+	return events.map((raw, index) => parseUsageEvent(raw, index));
+}
+
+export function parseLatestUsageEvent(data: unknown): UsageEvent | undefined {
+	return parseUsageEvents(data)[0];
+}
+
+function parseUsageEvent(raw: unknown, index: number): UsageEvent {
 	if (!isRecord(raw)) {
-		throw new Error('Invalid filtered-usage-events response: events[0] must be an object');
+		throw new Error(
+			`Invalid filtered-usage-events response: events[${index}] must be an object`
+		);
 	}
 
 	const timestamp =
@@ -136,13 +171,15 @@ export function parseLatestUsageEvent(data: unknown): UsageEvent | undefined {
 			? String(raw.timestamp)
 			: '';
 	if (!timestamp) {
-		throw new Error('Invalid filtered-usage-events response: missing timestamp');
+		throw new Error(
+			`Invalid filtered-usage-events response: events[${index}] missing timestamp`
+		);
 	}
 
 	const conversationId =
 		typeof raw.conversationId === 'string' ? raw.conversationId : '';
 
-	const chargedCents = requireNumber(raw.chargedCents, 'chargedCents');
+	const chargedCents = requireNumber(raw.chargedCents, `events[${index}].chargedCents`);
 	const model = typeof raw.model === 'string' ? raw.model : 'Unknown';
 
 	return {
