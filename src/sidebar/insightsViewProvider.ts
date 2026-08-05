@@ -238,38 +238,47 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			width: 0%;
 			transition: width 0.25s ease;
 		}
-		.request-list {
-			margin: 0;
-			padding: 0;
-		}
-		.request-row {
-			padding: 10px 0;
-			border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-widget-border, rgba(128,128,128,0.25)));
-		}
-		.request-row:first-child {
-			padding-top: 2px;
-		}
-		.request-row:last-child {
-			padding-bottom: 0;
-			border-bottom: none;
-		}
-		.request-time {
-			margin: 0 0 2px;
+		.requests-table {
+			width: 100%;
+			border-collapse: collapse;
+			table-layout: fixed;
 			font-size: 12px;
+		}
+		.requests-table th,
+		.requests-table td {
+			padding: 3px 6px 3px 0;
+			vertical-align: top;
+			text-align: left;
+		}
+		.requests-table th:last-child,
+		.requests-table td:last-child {
+			padding-right: 0;
+			text-align: right;
+		}
+		.requests-table th {
+			font-size: 11px;
+			font-weight: 600;
+			letter-spacing: 0.02em;
 			color: var(--vscode-descriptionForeground);
+		}
+		.requests-table td {
+			color: var(--vscode-foreground);
 			font-variant-numeric: tabular-nums;
 		}
-		.request-model {
-			margin: 0 0 2px;
-			font-size: 13px;
-			color: var(--vscode-foreground);
-			word-break: break-word;
+		.requests-table .col-time {
+			width: 28%;
+			white-space: nowrap;
+			color: var(--vscode-descriptionForeground);
 		}
-		.request-cost {
-			margin: 0;
-			font-size: 13px;
-			font-variant-numeric: tabular-nums;
-			color: var(--vscode-foreground);
+		.requests-table .col-model {
+			width: 52%;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+		.requests-table .col-cost {
+			width: 20%;
+			white-space: nowrap;
 		}
 		.actions {
 			display: flex;
@@ -450,14 +459,24 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			const rows = requests
 				.map(
 					(request) => `
-				<div class="request-row">
-					<p class="request-time">${escapeHtml(request.time)}</p>
-					<p class="request-model">${escapeHtml(request.model)}</p>
-					<p class="request-cost">${escapeHtml(request.cost)}</p>
-				</div>`
+				<tr>
+					<td class="col-time">${escapeHtml(request.time)}</td>
+					<td class="col-model" title="${escapeHtml(request.model)}">${escapeHtml(request.model)}</td>
+					<td class="col-cost">${escapeHtml(request.cost)}</td>
+				</tr>`
 				)
 				.join('');
-			body = `<div class="request-list">${rows}</div>`;
+			body = `
+				<table class="requests-table">
+					<thead>
+						<tr>
+							<th class="col-time">Time</th>
+							<th class="col-model">Model</th>
+							<th class="col-cost">Cost</th>
+						</tr>
+					</thead>
+					<tbody>${rows}</tbody>
+				</table>`;
 		}
 
 		const errorNote =

@@ -9,6 +9,7 @@ import {
 	OPEN_INSIGHTS_COMMAND,
 	REFRESH_COMMAND,
 	SHOW_LOGS_COMMAND,
+	TEST_HIGH_COST_ALERT_COMMAND,
 } from './commands';
 import { dumpCookies } from './dumpCookies';
 import { initLogger, log, showLogs } from './logger';
@@ -69,7 +70,10 @@ export function activate(context: vscode.ExtensionContext): void {
 			openCursorUsageDashboard()
 		),
 		vscode.commands.registerCommand(DUMP_COOKIES_COMMAND, () => dumpCookies()),
-		vscode.commands.registerCommand(SHOW_LOGS_COMMAND, () => showLogs())
+		vscode.commands.registerCommand(SHOW_LOGS_COMMAND, () => showLogs()),
+		vscode.commands.registerCommand(TEST_HIGH_COST_ALERT_COMMAND, () =>
+			highCostAlertService.triggerTestAlert()
+		)
 	);
 
 	void usageService.initialize();

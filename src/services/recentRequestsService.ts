@@ -11,7 +11,7 @@ import {
 	type RecentRequest,
 } from '../models/recentRequest';
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 3;
 
 export type RecentRequestsChangeListener = (
 	requests: RecentRequest[],

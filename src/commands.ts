@@ -6,6 +6,7 @@ export const OPEN_INSIGHTS_COMMAND = 'cursor-stats.openInsights';
 export const OPEN_DASHBOARD_COMMAND = 'cursor-stats.openDashboard';
 export const DUMP_COOKIES_COMMAND = 'cursor-stats.dumpCookies';
 export const SHOW_LOGS_COMMAND = 'cursor-stats.showLogs';
+export const TEST_HIGH_COST_ALERT_COMMAND = 'cursor-stats.testHighCostAlert';
 
 /** Webview view id registered in package.json. */
 export const INSIGHTS_VIEW_ID = 'cursorInsights.sidebar';

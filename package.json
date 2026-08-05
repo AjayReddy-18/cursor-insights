@@ -42,6 +42,10 @@
       {
         "command": "cursor-stats.showLogs",
         "title": "Cursor Insights: Show Logs"
+      },
+      {
+        "command": "cursor-stats.testHighCostAlert",
+        "title": "Cursor Insights: Test High Cost Alert"
       }
     ],
     "views": {
