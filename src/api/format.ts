@@ -21,8 +21,8 @@ export function formatBillingDay(date: Date): string {
 }
 
 /**
- * Formats an API usage-event timestamp in the user's local time.
- * Examples: "2:14 PM", "11:08 AM"
+ * Formats an API usage-event timestamp in the user's local 24-hour time.
+ * Examples: "14:14", "09:08"
  */
 export function formatLocalTime(timestamp: string): string {
 	const ms = Number(timestamp);
@@ -36,7 +36,8 @@ export function formatLocalTime(timestamp: string): string {
 	}
 
 	return date.toLocaleTimeString(undefined, {
-		hour: 'numeric',
+		hour: '2-digit',
 		minute: '2-digit',
+		hour12: false,
 	});
 }
