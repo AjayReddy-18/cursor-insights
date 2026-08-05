@@ -147,22 +147,19 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<title>Cursor Insights</title>
 	<style>
-		:root {
-			color-scheme: light dark;
-		}
 		body {
 			margin: 0;
 			padding: 10px 16px 16px;
 			font-family: var(--vscode-font-family);
 			font-size: var(--vscode-font-size);
 			font-weight: var(--vscode-font-weight);
-			color: var(--vscode-foreground);
-			background: transparent;
+			color: var(--vscode-editor-foreground, var(--vscode-foreground));
+			background: var(--vscode-sideBar-background, var(--vscode-editor-background));
 			line-height: 1.45;
 		}
 		.section {
 			padding: 12px 0;
-			border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-widget-border, rgba(128,128,128,0.35)));
+			border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border, var(--vscode-widget-border)));
 		}
 		.section:last-child {
 			border-bottom: none;
@@ -186,7 +183,7 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			margin: 0;
 			padding: 0;
 			border: none;
-			background: transparent;
+			background: inherit;
 			color: var(--vscode-descriptionForeground);
 			font: inherit;
 			font-size: 14px;
@@ -228,7 +225,7 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 		.progress {
 			height: 4px;
 			border-radius: 2px;
-			background: var(--vscode-editorWidget-background, rgba(128,128,128,0.25));
+			background: var(--vscode-input-background, var(--vscode-editorWidget-background));
 			overflow: hidden;
 		}
 		.progress-fill {
@@ -290,7 +287,7 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			margin: 0;
 			padding: 0;
 			border: none;
-			background: transparent;
+			background: inherit;
 			color: var(--vscode-textLink-foreground);
 			font: inherit;
 			font-size: 13px;
@@ -323,8 +320,43 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 		.threshold-slider {
 			width: 100%;
 			margin: 0;
-			accent-color: var(--vscode-progressBar-background, var(--vscode-button-background));
+			-webkit-appearance: none;
+			appearance: none;
+			height: 4px;
+			border-radius: 2px;
+			background: var(--vscode-input-background);
+			border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+			outline: none;
 			cursor: pointer;
+			accent-color: var(--vscode-progressBar-background, var(--vscode-button-background));
+		}
+		.threshold-slider:focus {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: 2px;
+		}
+		.threshold-slider::-webkit-slider-thumb {
+			-webkit-appearance: none;
+			appearance: none;
+			width: 14px;
+			height: 14px;
+			border-radius: 50%;
+			background: var(--vscode-button-background);
+			border: 1px solid var(--vscode-button-border, var(--vscode-button-background));
+			cursor: pointer;
+		}
+		.threshold-slider::-moz-range-thumb {
+			width: 14px;
+			height: 14px;
+			border-radius: 50%;
+			background: var(--vscode-button-background);
+			border: 1px solid var(--vscode-button-border, var(--vscode-button-background));
+			cursor: pointer;
+		}
+		.threshold-slider::-moz-range-track {
+			height: 4px;
+			border-radius: 2px;
+			background: var(--vscode-input-background);
+			border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
 		}
 	</style>
 </head>
