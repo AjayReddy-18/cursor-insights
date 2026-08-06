@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cursor Insights — Install in Cursor</title>
+  <meta name="description" content="Monitor your Cursor AI usage directly inside Cursor. Install Cursor Insights with one click." />
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --bg-accent: #eef1f5;
+      --surface: #ffffff;
+      --text: #1a1d23;
+      --text-muted: #5c6570;
+      --border: #d8dde5;
+      --button: #1a1d23;
+      --button-text: #ffffff;
+      --button-hover: #2d3340;
+      --link: #2563eb;
+      --shadow: 0 12px 40px rgba(26, 29, 35, 0.08);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1115;
+        --bg-accent: #171a21;
+        --surface: #1a1e26;
+        --text: #f2f4f7;
+        --text-muted: #9aa3af;
+        --border: #2c3340;
+        --button: #f2f4f7;
+        --button-text: #0f1115;
+        --button-hover: #ffffff;
+        --link: #7aa2ff;
+        --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 600px at 50% -10%, var(--bg-accent), transparent 60%),
+        var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 20px;
+      line-height: 1.5;
+    }
+
+    main {
+      width: 100%;
+      max-width: 440px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      padding: 40px 32px 36px;
+      text-align: center;
+    }
+
+    .icon {
+      width: 88px;
+      height: 88px;
+      border-radius: 20px;
+      object-fit: cover;
+      margin: 0 auto 24px;
+      display: block;
+      border: 1px solid var(--border);
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 1rem;
+      margin-bottom: 28px;
+    }
+
+    .install-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      max-width: 280px;
+      padding: 14px 24px;
+      border: none;
+      border-radius: 999px;
+      background: var(--button);
+      color: var(--button-text);
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.15s ease, transform 0.15s ease;
+    }
+
+    .install-btn:hover {
+      background: var(--button-hover);
+      transform: translateY(-1px);
+    }
+
+    .install-btn:active {
+      transform: translateY(0);
+    }
+
+    .fallback {
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      text-align: left;
+    }
+
+    .fallback h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .fallback ul {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      padding-left: 1.15rem;
+      margin-bottom: 20px;
+    }
+
+    .fallback li + li {
+      margin-top: 6px;
+    }
+
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 20px;
+      font-size: 0.9rem;
+    }
+
+    .links a {
+      color: var(--link);
+      text-decoration: none;
+    }
+
+    .links a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 480px) {
+      main {
+        padding: 32px 24px 28px;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <img class="icon" src="icon.png" alt="Cursor Insights icon" width="88" height="88" />
+    <h1>Cursor Insights</h1>
+    <p class="subtitle">Monitor your Cursor AI usage directly inside Cursor.</p>
+
+    <a
+      id="install-btn"
+      class="install-btn"
+      href="cursor:extension/ajayreddy.cursor-insights"
+    >
+      Install in Cursor
+    </a>
+
+    <section class="fallback" aria-label="Troubleshooting">
+      <h2>If Cursor didn't open:</h2>
+      <ul>
+        <li>Make sure Cursor is installed.</li>
+        <li>Search for "Cursor Insights" in the Extensions Marketplace.</li>
+      </ul>
+      <nav class="links">
+        <a href="https://github.com/AjayReddy-18/cursor-insights" rel="noopener noreferrer">
+          GitHub Repository
+        </a>
+        <a href="https://open-vsx.org/extension/ajayreddy/cursor-insights" rel="noopener noreferrer">
+          Open VSX Extension
+        </a>
+      </nav>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      var INSTALL_URI = "cursor:extension/ajayreddy.cursor-insights";
+      var btn = document.getElementById("install-btn");
+      if (!btn) return;
+
+      btn.addEventListener("click", function (event) {
+        // User-initiated only — no auto-redirect on page load.
+        event.preventDefault();
+        window.location.href = INSTALL_URI;
+      });
+    })();
+  </script>
+</body>
+</html>

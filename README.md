@@ -2,6 +2,19 @@
 
 Display your Cursor monthly usage directly inside Cursor, along with recent requests and configurable high-cost request alerts.
 
+## Install in Cursor
+
+[![Install in Cursor](https://img.shields.io/badge/Install%20in-Cursor-111111?style=for-the-badge&logo=visualstudiocode&logoColor=white)](https://ajayreddy-18.github.io/cursor-insights/)
+
+Click the button above to open the [install page](https://ajayreddy-18.github.io/cursor-insights/). From there, **Install in Cursor** opens Cursor directly to the Cursor Insights extension.
+
+### Quick install
+
+1. Click **Install in Cursor**
+2. Cursor opens to Cursor Insights
+3. Click **Install**
+4. Connect your account
+
 ## Features
 
 - Status bar shows month-to-date usage (`MTD - $19.04 / $200.00`)
@@ -16,9 +29,9 @@ Display your Cursor monthly usage directly inside Cursor, along with recent requ
 - Uses your existing Cursor login on this machine (no token paste)
 - Click the status bar to open Cursor Insights
 
-## Install and Setup (Step by Step)
+## Manual install (VSIX)
 
-Follow these steps in order.
+Prefer offline installation? You can install from a `.vsix` instead.
 
 ### 1) Download the `.vsix` from GitHub
 
