@@ -37,7 +37,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onView:cursorInsights.dashboard"
   ],
   "main": "./dist/extension.js",
   "contributes": {

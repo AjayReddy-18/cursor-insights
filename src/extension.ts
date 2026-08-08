@@ -57,9 +57,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		highCostAlertService,
 		statusBar,
 		dashboard,
-		vscode.window.registerWebviewViewProvider(INSIGHTS_VIEW_ID, dashboard, {
-			webviewOptions: { retainContextWhenHidden: true },
-		}),
+		vscode.window.registerWebviewViewProvider(INSIGHTS_VIEW_ID, dashboard),
 		vscode.commands.registerCommand(CONNECT_COMMAND, async () => {
 			await usageService.initialize();
 			if (await usageService.isAuthenticated()) {

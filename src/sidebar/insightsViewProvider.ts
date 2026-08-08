@@ -37,6 +37,7 @@ import type {
 	RecentRequestsService,
 	RecentRequestsServiceState,
 } from '../services/recentRequestsService';
+import { log, logError } from '../logger';
 import type { UsageService, UsageServiceState } from '../services/usageService';
 import { conversationChartHoverScript, renderConversationDoughnut } from './conversationChart';
 
@@ -48,6 +49,9 @@ type WebviewMessage =
 	| { type: 'setConversationTimeframe'; value: string }
 	| { type: 'setConversationMetric'; value: string };
 
+/** Coalesce bursty service updates so the webview is not rewritten mid-load. */
+const RENDER_DEBOUNCE_MS = 40;
+
 /**
  * Cursor Insights Activity Bar dashboard. Receives typed models from services —
  * never calls the API directly.
@@ -56,7 +60,11 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 	public static readonly viewType = INSIGHTS_VIEW_ID;
 
 	private view: vscode.WebviewView | undefined;
+	/** Stable per webview instance — regenerating on every paint can blank the host. */
+	private nonce: string | undefined;
+	private renderTimer: ReturnType<typeof setTimeout> | undefined;
 	private readonly subscriptions: vscode.Disposable[] = [];
+	private viewDisposables: vscode.Disposable[] = [];
 
 	constructor(
 		private readonly usageService: UsageService,
@@ -65,13 +73,13 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 	) {
 		this.subscriptions.push(
 			this.usageService.onDidChange(() => {
-				this.renderCurrent();
+				this.scheduleRender();
 			}),
 			this.recentRequestsService.onDidChange(() => {
-				this.renderCurrent();
+				this.scheduleRender();
 			}),
 			this.conversationInsightsService.onDidChange(() => {
-				this.renderCurrent();
+				this.scheduleRender();
 			})
 		);
 	}
@@ -81,35 +89,96 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 		_context: vscode.WebviewViewResolveContext,
 		_token: vscode.CancellationToken
 	): void {
+		this.disposeViewDisposables();
+		this.clearRenderTimer();
 		this.view = webviewView;
+		this.nonce = getNonce();
+		log('Dashboard webview resolving');
 
 		webviewView.webview.options = {
 			enableScripts: true,
 		};
 
-		webviewView.webview.onDidReceiveMessage((message: WebviewMessage) => {
-			void this.handleMessage(message);
-		});
-
-		webviewView.onDidChangeVisibility(() => {
-			if (webviewView.visible) {
-				// Re-paint when shown — Activity Bar webviews can resolve before
-				// the first paint sticks, leaving a blank panel until reopen.
-				this.renderCurrent();
+		this.viewDisposables.push(
+			webviewView.webview.onDidReceiveMessage((message: WebviewMessage) => {
+				void this.handleMessage(message);
+			}),
+			webviewView.onDidChangeVisibility(() => {
+				if (!webviewView.visible || this.view !== webviewView) {
+					return;
+				}
+				log('Dashboard webview visible — repainting');
+				this.paint(webviewView, 'visibility');
 				void this.recentRequestsService.refresh();
 				void this.conversationInsightsService.refresh(
 					getConversationTimeframe()
 				);
-			}
-		});
+			}),
+			webviewView.onDidDispose(() => {
+				if (this.view === webviewView) {
+					log('Dashboard webview disposed');
+					this.clearRenderTimer();
+					this.view = undefined;
+					this.nonce = undefined;
+				}
+			})
+		);
 
 		this.conversationInsightsService.setMetric(getConversationMetric());
-		this.renderCurrent();
+
+		// Immediate paint + delayed retries: Cursor/VS Code Activity Bar webviews
+		// intermittently drop the first html assignment (missing iframe) until a
+		// later set. Close+reopen used to mask this by re-resolving.
+		this.paint(webviewView, 'resolve');
+		for (const delayMs of [50, 250, 1000]) {
+			const timer = setTimeout(() => {
+				if (this.view !== webviewView) {
+					return;
+				}
+				this.paint(webviewView, `retry-${delayMs}ms`);
+			}, delayMs);
+			this.viewDisposables.push({ dispose: () => clearTimeout(timer) });
+		}
+
 		void this.recentRequestsService.refresh();
 		void this.conversationInsightsService.refresh(getConversationTimeframe());
 	}
 
-	private renderCurrent(): void {
+	private scheduleRender(immediate = false): void {
+		this.clearRenderTimer();
+		if (immediate) {
+			this.renderNow(true);
+			return;
+		}
+		this.renderTimer = setTimeout(() => {
+			this.renderTimer = undefined;
+			this.renderNow();
+		}, RENDER_DEBOUNCE_MS);
+	}
+
+	private clearRenderTimer(): void {
+		if (this.renderTimer !== undefined) {
+			clearTimeout(this.renderTimer);
+			this.renderTimer = undefined;
+		}
+	}
+
+	private paint(webviewView: vscode.WebviewView, reason: string): void {
+		if (this.view !== webviewView) {
+			return;
+		}
+		log(`Dashboard webview paint (${reason})`);
+		this.renderNow(true);
+	}
+
+	private renderNow(force = false): void {
+		if (!this.view) {
+			return;
+		}
+		if (!force && !this.view.visible) {
+			return;
+		}
+
 		this.render(
 			this.usageService.getCurrentUsage(),
 			this.usageService.getState(),
@@ -140,7 +209,7 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 				const timeframe = parseConversationTimeframe(message.value);
 				await setConversationTimeframe(timeframe);
 				// Update active pill immediately; refresh may still be in flight.
-				this.renderCurrent();
+				this.scheduleRender(true);
 				await this.conversationInsightsService.refresh(timeframe);
 				break;
 			}
@@ -166,15 +235,20 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			return;
 		}
 
-		this.view.webview.html = this.getHtml(
-			this.view.webview,
-			usage,
-			state,
-			requests,
-			requestsState,
-			conversationSegments,
-			conversationState
-		);
+		try {
+			const html = this.getHtml(
+				this.view.webview,
+				usage,
+				state,
+				requests,
+				requestsState,
+				conversationSegments,
+				conversationState
+			);
+			this.view.webview.html = html;
+		} catch (error) {
+			logError('Dashboard webview render failed:', error);
+		}
 	}
 
 	private getHtml(
@@ -186,7 +260,7 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 		conversationSegments: ConversationChartSegment[],
 		conversationState: ConversationInsightsServiceState
 	): string {
-		const nonce = getNonce();
+		const nonce = this.nonce ?? getNonce();
 		const csp = [
 			`default-src 'none'`,
 			`style-src ${webview.cspSource} 'unsafe-inline'`,
@@ -905,9 +979,20 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 	}
 
 	dispose(): void {
+		this.clearRenderTimer();
+		this.disposeViewDisposables();
+		this.view = undefined;
+		this.nonce = undefined;
 		for (const subscription of this.subscriptions) {
 			subscription.dispose();
 		}
+	}
+
+	private disposeViewDisposables(): void {
+		for (const disposable of this.viewDisposables) {
+			disposable.dispose();
+		}
+		this.viewDisposables = [];
 	}
 }
 
