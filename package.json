@@ -90,6 +90,36 @@
           "minimum": 1,
           "maximum": 10,
           "description": "Show a notification when a single Cursor request costs more than this amount (USD)."
+        },
+        "cursorInsights.conversationInsightsTimeframe": {
+          "type": "string",
+          "default": "MTD",
+          "enum": [
+            "1D",
+            "7D",
+            "30D",
+            "MTD"
+          ],
+          "description": "Timeframe for Conversation Insights analytics."
+        },
+        "cursorInsights.conversationInsightsMetric": {
+          "type": "string",
+          "default": "categories",
+          "enum": [
+            "workType",
+            "intentDistribution",
+            "categories",
+            "taskComplexity",
+            "promptSpecificity"
+          ],
+          "enumDescriptions": [
+            "Work Type",
+            "Intent Distribution",
+            "Categories",
+            "Task Complexity",
+            "Prompt Specificity"
+          ],
+          "description": "Metric shown in the Conversation Insights chart."
         }
       }
     }
@@ -106,7 +136,8 @@
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "mocha --ui tdd --require ./src/test/vscode-mock.cjs --timeout 20000 'out/test/**/*.test.js'",
+    "test:electron": "vscode-test"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

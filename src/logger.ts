@@ -17,16 +17,17 @@ export function initLogger(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(outputChannel);
 }
 
-function getOutput(): vscode.OutputChannel {
-	if (!outputChannel) {
-		throw new Error('Logger not initialized. Call initLogger() during activation.');
-	}
+function getOutput(): vscode.OutputChannel | undefined {
 	return outputChannel;
 }
 
 /** Reveals the Output panel with the Cursor Insights channel selected. */
 export function showLogs(): void {
-	getOutput().show(true);
+	const output = getOutput();
+	if (!output) {
+		throw new Error('Logger not initialized. Call initLogger() during activation.');
+	}
+	output.show(true);
 }
 
 function timestamp(): string {
@@ -34,21 +35,26 @@ function timestamp(): string {
 }
 
 export function log(message: string): void {
-	getOutput().appendLine(`[${timestamp()}] ${message}`);
+	getOutput()?.appendLine(`[${timestamp()}] ${message}`);
 }
 
 export function logJson(label: string, data: unknown): void {
 	log(label);
-	getOutput().appendLine(JSON.stringify(data, null, 2));
+	getOutput()?.appendLine(JSON.stringify(data, null, 2));
 }
 
 export function logError(message: string, error: unknown): void {
 	log(message);
 
-	if (error instanceof Error) {
-		getOutput().appendLine(error.stack ?? `${error.name}: ${error.message}`);
+	const output = getOutput();
+	if (!output) {
 		return;
 	}
 
-	getOutput().appendLine(String(error));
+	if (error instanceof Error) {
+		output.appendLine(error.stack ?? `${error.name}: ${error.message}`);
+		return;
+	}
+
+	output.appendLine(String(error));
 }

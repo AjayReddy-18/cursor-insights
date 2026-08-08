@@ -11,21 +11,42 @@ import {
 	ALERT_THRESHOLD_MAX,
 	ALERT_THRESHOLD_MIN,
 	getAlertThreshold,
+	getConversationMetric,
+	getConversationTimeframe,
+	parseConversationMetric,
+	parseConversationTimeframe,
 	setAlertThreshold,
+	setConversationMetric,
+	setConversationTimeframe,
 } from '../config';
 import type { RecentRequest } from '../models/recentRequest';
+import {
+	CONVERSATION_METRIC_LABELS,
+	CONVERSATION_METRICS,
+	CONVERSATION_TIMEFRAMES,
+	type ConversationChartSegment,
+	type ConversationMetric,
+	type ConversationTimeframe,
+} from '../models/conversationInsights';
 import type { UsageModel } from '../models/usageModel';
+import type {
+	ConversationInsightsService,
+	ConversationInsightsServiceState,
+} from '../services/conversationInsightsService';
 import type {
 	RecentRequestsService,
 	RecentRequestsServiceState,
 } from '../services/recentRequestsService';
 import type { UsageService, UsageServiceState } from '../services/usageService';
+import { renderConversationDoughnut } from './conversationChart';
 
 type WebviewMessage =
 	| { type: 'refresh' }
 	| { type: 'openDashboard' }
 	| { type: 'connect' }
-	| { type: 'setAlertThreshold'; value: number };
+	| { type: 'setAlertThreshold'; value: number }
+	| { type: 'setConversationTimeframe'; value: string }
+	| { type: 'setConversationMetric'; value: string };
 
 /**
  * Cursor Insights Activity Bar dashboard. Receives typed models from services —
@@ -39,13 +60,17 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 
 	constructor(
 		private readonly usageService: UsageService,
-		private readonly recentRequestsService: RecentRequestsService
+		private readonly recentRequestsService: RecentRequestsService,
+		private readonly conversationInsightsService: ConversationInsightsService
 	) {
 		this.subscriptions.push(
 			this.usageService.onDidChange(() => {
 				this.renderCurrent();
 			}),
 			this.recentRequestsService.onDidChange(() => {
+				this.renderCurrent();
+			}),
+			this.conversationInsightsService.onDidChange(() => {
 				this.renderCurrent();
 			})
 		);
@@ -69,11 +94,16 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 		webviewView.onDidChangeVisibility(() => {
 			if (webviewView.visible) {
 				void this.recentRequestsService.refresh();
+				void this.conversationInsightsService.refresh(
+					getConversationTimeframe()
+				);
 			}
 		});
 
+		this.conversationInsightsService.setMetric(getConversationMetric());
 		this.renderCurrent();
 		void this.recentRequestsService.refresh();
+		void this.conversationInsightsService.refresh(getConversationTimeframe());
 	}
 
 	private renderCurrent(): void {
@@ -81,7 +111,9 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			this.usageService.getCurrentUsage(),
 			this.usageService.getState(),
 			this.recentRequestsService.getRequests(),
-			this.recentRequestsService.getState()
+			this.recentRequestsService.getState(),
+			this.conversationInsightsService.getSegments(),
+			this.conversationInsightsService.getState()
 		);
 	}
 
@@ -101,6 +133,19 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 					await setAlertThreshold(message.value);
 				}
 				break;
+			case 'setConversationTimeframe': {
+				const timeframe = parseConversationTimeframe(message.value);
+				await setConversationTimeframe(timeframe);
+				await this.conversationInsightsService.refresh(timeframe);
+				break;
+			}
+			case 'setConversationMetric': {
+				const metric = parseConversationMetric(message.value);
+				await setConversationMetric(metric);
+				// Remap from already-fetched data — no API request.
+				this.conversationInsightsService.setMetric(metric);
+				break;
+			}
 		}
 	}
 
@@ -108,7 +153,9 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 		usage: UsageModel | undefined,
 		state: UsageServiceState,
 		requests: RecentRequest[],
-		requestsState: RecentRequestsServiceState
+		requestsState: RecentRequestsServiceState,
+		conversationSegments: ConversationChartSegment[],
+		conversationState: ConversationInsightsServiceState
 	): void {
 		if (!this.view) {
 			return;
@@ -119,7 +166,9 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			usage,
 			state,
 			requests,
-			requestsState
+			requestsState,
+			conversationSegments,
+			conversationState
 		);
 	}
 
@@ -128,7 +177,9 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 		usage: UsageModel | undefined,
 		state: UsageServiceState,
 		requests: RecentRequest[],
-		requestsState: RecentRequestsServiceState
+		requestsState: RecentRequestsServiceState,
+		conversationSegments: ConversationChartSegment[],
+		conversationState: ConversationInsightsServiceState
 	): string {
 		const nonce = getNonce();
 		const csp = [
@@ -137,7 +188,14 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			`script-src 'nonce-${nonce}'`,
 		].join('; ');
 
-		const body = this.getBody(usage, state, requests, requestsState);
+		const body = this.getBody(
+			usage,
+			state,
+			requests,
+			requestsState,
+			conversationSegments,
+			conversationState
+		);
 
 		return `<!DOCTYPE html>
 <html lang="en">
@@ -395,6 +453,54 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			outline: 1px solid var(--vscode-focusBorder);
 			outline-offset: 2px;
 		}
+		.field-row {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 8px;
+			margin: 0 0 8px;
+		}
+		.field-label {
+			margin: 0;
+			font-size: 12px;
+			color: var(--vscode-descriptionForeground);
+			flex-shrink: 0;
+		}
+		.field-select {
+			flex: 1;
+			min-width: 0;
+			max-width: 160px;
+			margin-left: auto;
+			padding: 2px 6px;
+			border: 1px solid var(--vscode-dropdown-border, var(--vscode-input-border, var(--vscode-panel-border)));
+			border-radius: 2px;
+			background: var(--vscode-dropdown-background, var(--vscode-input-background));
+			color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
+			font: inherit;
+			font-size: 12px;
+		}
+		.field-select:focus {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: 1px;
+		}
+		.chart-wrap {
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			width: 100%;
+			margin: 4px 0 0;
+		}
+		.conversation-chart {
+			width: 100%;
+			max-width: 260px;
+			height: auto;
+			overflow: visible;
+		}
+		.conversation-chart .chart-label {
+			fill: var(--vscode-foreground);
+			font-size: 9px;
+			font-family: var(--vscode-font-family);
+		}
 	</style>
 </head>
 <body>
@@ -429,6 +535,26 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 				});
 			});
 		}
+
+		const timeframeSelect = document.getElementById('conversation-timeframe');
+		if (timeframeSelect) {
+			timeframeSelect.addEventListener('change', () => {
+				vscode.postMessage({
+					type: 'setConversationTimeframe',
+					value: timeframeSelect.value,
+				});
+			});
+		}
+
+		const metricSelect = document.getElementById('conversation-metric');
+		if (metricSelect) {
+			metricSelect.addEventListener('change', () => {
+				vscode.postMessage({
+					type: 'setConversationMetric',
+					value: metricSelect.value,
+				});
+			});
+		}
 	</script>
 </body>
 </html>`;
@@ -438,9 +564,14 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 		usage: UsageModel | undefined,
 		state: UsageServiceState,
 		requests: RecentRequest[],
-		requestsState: RecentRequestsServiceState
+		requestsState: RecentRequestsServiceState,
+		conversationSegments: ConversationChartSegment[],
+		conversationState: ConversationInsightsServiceState
 	): string {
-		const refreshing = state === 'loading' || requestsState === 'loading';
+		const refreshing =
+			state === 'loading' ||
+			requestsState === 'loading' ||
+			conversationState === 'loading';
 
 		if (state === 'disconnected') {
 			return `
@@ -464,7 +595,8 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 				</div>
 				${this.recentRequestsSection(requests, requestsState)}
 				${this.alertThresholdSection()}
-				${this.actionsSection()}`;
+				${this.actionsSection()}
+				${this.conversationInsightsSection(conversationSegments, conversationState)}`;
 		}
 
 		const used = formatCentsAsUsd(usage.usedCents);
@@ -489,7 +621,8 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			</div>
 			${this.recentRequestsSection(requests, requestsState)}
 			${this.alertThresholdSection()}
-			${this.actionsSection()}`;
+			${this.actionsSection()}
+			${this.conversationInsightsSection(conversationSegments, conversationState)}`;
 	}
 
 	private headerRow(refreshing: boolean): string {
@@ -554,6 +687,57 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			</div>`;
 	}
 
+	private conversationInsightsSection(
+		segments: ConversationChartSegment[],
+		state: ConversationInsightsServiceState
+	): string {
+		if (state === 'disconnected') {
+			return '';
+		}
+
+		const timeframe = getConversationTimeframe();
+		const metric = getConversationMetric();
+
+		let body: string;
+		if (state === 'loading' && segments.length === 0) {
+			body = `<p class="status-msg">Loading…</p>`;
+		} else if (state === 'error' && segments.length === 0) {
+			body = `<p class="status-msg error">Failed to load conversation insights.</p>`;
+		} else if (segments.length === 0) {
+			body = `<p class="status-msg">No conversation insights available for this period.</p>`;
+		} else {
+			body = `<div class="chart-wrap">${renderConversationDoughnut(segments)}</div>`;
+		}
+
+		const errorNote =
+			state === 'error' && segments.length > 0
+				? `<p class="status-msg error">Last refresh failed — showing cached data.</p>`
+				: '';
+
+		return `
+			<div class="section">
+				<p class="section-title">Conversation Insights</p>
+				${this.conversationSelectorRow('Timeframe', 'conversation-timeframe', timeframeOptions(timeframe))}
+				${this.conversationSelectorRow('Metric', 'conversation-metric', metricOptions(metric))}
+				${body}
+				${errorNote}
+			</div>`;
+	}
+
+	private conversationSelectorRow(
+		label: string,
+		id: string,
+		optionsHtml: string
+	): string {
+		return `
+			<div class="field-row">
+				<p class="field-label">${escapeHtml(label)}</p>
+				<select class="field-select" id="${id}" aria-label="${escapeHtml(label)}">
+					${optionsHtml}
+				</select>
+			</div>`;
+	}
+
 	private alertThresholdSection(): string {
 		const threshold = getAlertThreshold();
 		const label = formatCentsAsUsd(Math.round(threshold * 100));
@@ -588,6 +772,21 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			subscription.dispose();
 		}
 	}
+}
+
+function timeframeOptions(selected: ConversationTimeframe): string {
+	return CONVERSATION_TIMEFRAMES.map((value) => {
+		const isSelected = value === selected ? ' selected' : '';
+		return `<option value="${value}"${isSelected}>${value}</option>`;
+	}).join('');
+}
+
+function metricOptions(selected: ConversationMetric): string {
+	return CONVERSATION_METRICS.map((value) => {
+		const isSelected = value === selected ? ' selected' : '';
+		const label = CONVERSATION_METRIC_LABELS[value];
+		return `<option value="${value}"${isSelected}>${escapeHtml(label)}</option>`;
+	}).join('');
 }
 
 function escapeHtml(value: string): string {

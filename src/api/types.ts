@@ -14,3 +14,28 @@ export interface UsageEvent {
 	chargedCents: number;
 	model: string;
 }
+
+/** Label/count pair used by Conversation Insights histograms. */
+export interface ConversationHistogramItem {
+	label: string;
+	count: number;
+}
+
+/** Response from /api/v2/analytics/team/conversation-classification. */
+export interface ConversationClassification {
+	intentDistribution: ConversationHistogramItem[];
+	categoriesHistogram: ConversationHistogramItem[];
+	complexityDistribution: ConversationHistogramItem[];
+	guidanceLevelDistribution: ConversationHistogramItem[];
+}
+
+/** Response from /api/v2/analytics/team/conversation-segments. */
+export interface ConversationSegments {
+	workTypeHistogram: ConversationHistogramItem[];
+}
+
+/** Combined Conversation Insights payload for the selected timeframe. */
+export interface ConversationInsightsPayload {
+	classification: ConversationClassification;
+	segments: ConversationSegments;
+}

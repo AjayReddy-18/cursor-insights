@@ -9,7 +9,12 @@ import {
 	REFRESH_COMMAND,
 	SHOW_LOGS_COMMAND,
 } from './commands';
+import {
+	getConversationMetric,
+	getConversationTimeframe,
+} from './config';
 import { initLogger, log, showLogs } from './logger';
+import { ConversationInsightsService } from './services/conversationInsightsService';
 import { HighCostAlertService } from './services/highCostAlertService';
 import { RecentRequestsService } from './services/recentRequestsService';
 import { UsageService } from './services/usageService';
@@ -26,14 +31,21 @@ export function activate(context: vscode.ExtensionContext): void {
 	const auth = new LocalCursorAuthProvider();
 	const usageService = new UsageService(auth);
 	const recentRequestsService = new RecentRequestsService(auth);
+	const conversationInsightsService = new ConversationInsightsService(auth);
+	conversationInsightsService.setMetric(getConversationMetric());
 	const highCostAlertService = new HighCostAlertService(auth);
 	const statusBar = new CursorInsightsStatusBar(usageService);
-	const dashboard = new InsightsViewProvider(usageService, recentRequestsService);
+	const dashboard = new InsightsViewProvider(
+		usageService,
+		recentRequestsService,
+		conversationInsightsService
+	);
 
 	const refreshAll = async (): Promise<void> => {
 		await Promise.all([
 			usageService.refresh(),
 			recentRequestsService.refresh(),
+			conversationInsightsService.refresh(getConversationTimeframe()),
 			highCostAlertService.initialize(),
 		]);
 	};
@@ -41,6 +53,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
 		usageService,
 		recentRequestsService,
+		conversationInsightsService,
 		highCostAlertService,
 		statusBar,
 		dashboard,
