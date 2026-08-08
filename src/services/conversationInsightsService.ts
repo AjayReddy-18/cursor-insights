@@ -32,6 +32,8 @@ export class ConversationInsightsService implements vscode.Disposable {
 	private segments: ConversationChartSegment[] = [];
 	private state: ConversationInsightsServiceState = 'disconnected';
 	private refreshInFlight: Promise<ConversationChartSegment[]> | undefined;
+	private inFlightTimeframe: ConversationTimeframe | undefined;
+	private queuedTimeframe: ConversationTimeframe | undefined;
 	private metric: ConversationMetric = 'categories';
 	private readonly listeners = new Set<ConversationInsightsChangeListener>();
 
@@ -78,11 +80,26 @@ export class ConversationInsightsService implements vscode.Disposable {
 		timeframe: ConversationTimeframe = getConversationTimeframe()
 	): Promise<ConversationChartSegment[]> {
 		if (this.refreshInFlight) {
-			return this.refreshInFlight;
+			if (timeframe === this.inFlightTimeframe) {
+				return this.refreshInFlight;
+			}
+
+			// Newest timeframe wins once the current request finishes.
+			this.queuedTimeframe = timeframe;
+			await this.refreshInFlight;
+			if (this.queuedTimeframe === undefined) {
+				return this.segments;
+			}
+
+			const next = this.queuedTimeframe;
+			this.queuedTimeframe = undefined;
+			return this.refresh(next);
 		}
 
+		this.inFlightTimeframe = timeframe;
 		this.refreshInFlight = this.doRefresh(timeframe).finally(() => {
 			this.refreshInFlight = undefined;
+			this.inFlightTimeframe = undefined;
 		});
 
 		return this.refreshInFlight;

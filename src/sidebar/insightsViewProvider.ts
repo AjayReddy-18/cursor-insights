@@ -38,7 +38,7 @@ import type {
 	RecentRequestsServiceState,
 } from '../services/recentRequestsService';
 import type { UsageService, UsageServiceState } from '../services/usageService';
-import { renderConversationDoughnut } from './conversationChart';
+import { conversationChartHoverScript, renderConversationDoughnut } from './conversationChart';
 
 type WebviewMessage =
 	| { type: 'refresh' }
@@ -93,6 +93,9 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 
 		webviewView.onDidChangeVisibility(() => {
 			if (webviewView.visible) {
+				// Re-paint when shown — Activity Bar webviews can resolve before
+				// the first paint sticks, leaving a blank panel until reopen.
+				this.renderCurrent();
 				void this.recentRequestsService.refresh();
 				void this.conversationInsightsService.refresh(
 					getConversationTimeframe()
@@ -136,6 +139,8 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			case 'setConversationTimeframe': {
 				const timeframe = parseConversationTimeframe(message.value);
 				await setConversationTimeframe(timeframe);
+				// Update active pill immediately; refresh may still be in flight.
+				this.renderCurrent();
 				await this.conversationInsightsService.refresh(timeframe);
 				break;
 			}
@@ -483,23 +488,130 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			outline: 1px solid var(--vscode-focusBorder);
 			outline-offset: 1px;
 		}
+		.timeframe-pills {
+			display: inline-flex;
+			align-items: center;
+			gap: 2px;
+			margin: 0 0 8px;
+			padding: 2px;
+			border-radius: 999px;
+			background: transparent;
+		}
+		.timeframe-pill {
+			margin: 0;
+			padding: 3px 10px;
+			border: none;
+			border-radius: 999px;
+			background: transparent;
+			color: var(--vscode-descriptionForeground);
+			font: inherit;
+			font-size: 12px;
+			line-height: 1.3;
+			cursor: pointer;
+		}
+		.timeframe-pill:hover {
+			color: var(--vscode-foreground);
+		}
+		.timeframe-pill.active {
+			background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+			color: var(--vscode-foreground);
+		}
+		.timeframe-pill:focus {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: 1px;
+		}
+		.section-title-row {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			margin: 0 0 8px;
+		}
+		.section-title-row .section-title {
+			margin: 0;
+		}
+		.help-icon {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			width: 14px;
+			height: 14px;
+			border-radius: 50%;
+			border: 1px solid var(--vscode-descriptionForeground);
+			color: var(--vscode-descriptionForeground);
+			font-size: 10px;
+			font-weight: 600;
+			line-height: 1;
+			cursor: help;
+			flex-shrink: 0;
+			position: relative;
+		}
+		.help-icon:hover,
+		.help-icon:focus {
+			color: var(--vscode-foreground);
+			border-color: var(--vscode-foreground);
+			outline: none;
+		}
+		.help-tooltip {
+			display: none;
+			position: absolute;
+			left: 50%;
+			bottom: calc(100% + 6px);
+			transform: translateX(-50%);
+			width: max-content;
+			max-width: 200px;
+			padding: 6px 8px;
+			border-radius: 4px;
+			background: var(--vscode-editorWidget-background, var(--vscode-dropdown-background));
+			border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, var(--vscode-panel-border)));
+			box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.25));
+			color: var(--vscode-foreground);
+			font-size: 11px;
+			font-weight: 400;
+			line-height: 1.4;
+			text-align: left;
+			text-transform: none;
+			letter-spacing: normal;
+			z-index: 10;
+			pointer-events: none;
+		}
+		.help-icon:hover .help-tooltip,
+		.help-icon:focus .help-tooltip {
+			display: block;
+		}
 		.chart-wrap {
 			display: flex;
 			justify-content: center;
 			align-items: center;
 			width: 100%;
 			margin: 4px 0 0;
+			overflow: visible;
 		}
 		.conversation-chart {
 			width: 100%;
-			max-width: 260px;
+			max-width: 100%;
 			height: auto;
 			overflow: visible;
 		}
 		.conversation-chart .chart-label {
 			fill: var(--vscode-foreground);
-			font-size: 9px;
 			font-family: var(--vscode-font-family);
+			paint-order: stroke;
+		}
+		.conversation-chart .donut-slice,
+		.conversation-chart .donut-leader,
+		.conversation-chart .chart-label {
+			transition: opacity 0.12s ease;
+		}
+		.conversation-chart .is-dimmed {
+			opacity: 0.22;
+		}
+		.conversation-chart .is-active {
+			opacity: 1;
+		}
+		.conversation-chart .donut-item,
+		.conversation-chart .donut-leader,
+		.conversation-chart .chart-label {
+			cursor: default;
 		}
 	</style>
 </head>
@@ -536,15 +648,18 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 			});
 		}
 
-		const timeframeSelect = document.getElementById('conversation-timeframe');
-		if (timeframeSelect) {
-			timeframeSelect.addEventListener('change', () => {
+		document.querySelectorAll('[data-timeframe]').forEach((el) => {
+			el.addEventListener('click', () => {
+				const value = el.getAttribute('data-timeframe');
+				if (!value || el.classList.contains('active')) {
+					return;
+				}
 				vscode.postMessage({
 					type: 'setConversationTimeframe',
-					value: timeframeSelect.value,
+					value,
 				});
 			});
-		}
+		});
 
 		const metricSelect = document.getElementById('conversation-metric');
 		if (metricSelect) {
@@ -555,6 +670,8 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 				});
 			});
 		}
+
+		${conversationChartHoverScript()}
 	</script>
 </body>
 </html>`;
@@ -594,9 +711,9 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 					<p class="status-msg${errorClass}">${escapeHtml(msg)}</p>
 				</div>
 				${this.recentRequestsSection(requests, requestsState)}
+				${this.conversationInsightsSection(conversationSegments, conversationState)}
 				${this.alertThresholdSection()}
-				${this.actionsSection()}
-				${this.conversationInsightsSection(conversationSegments, conversationState)}`;
+				${this.actionsSection()}`;
 		}
 
 		const used = formatCentsAsUsd(usage.usedCents);
@@ -620,9 +737,9 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 				${errorNote}
 			</div>
 			${this.recentRequestsSection(requests, requestsState)}
+			${this.conversationInsightsSection(conversationSegments, conversationState)}
 			${this.alertThresholdSection()}
-			${this.actionsSection()}
-			${this.conversationInsightsSection(conversationSegments, conversationState)}`;
+			${this.actionsSection()}`;
 	}
 
 	private headerRow(refreshing: boolean): string {
@@ -717,10 +834,23 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 		return `
 			<div class="section">
 				<p class="section-title">Conversation Insights</p>
-				${this.conversationSelectorRow('Timeframe', 'conversation-timeframe', timeframeOptions(timeframe))}
+				${this.timeframePills(timeframe)}
 				${this.conversationSelectorRow('Metric', 'conversation-metric', metricOptions(metric))}
 				${body}
 				${errorNote}
+			</div>`;
+	}
+
+	private timeframePills(selected: ConversationTimeframe): string {
+		const pills = CONVERSATION_TIMEFRAMES.map((value) => {
+			const active = value === selected ? ' active' : '';
+			const pressed = value === selected ? 'true' : 'false';
+			const label = TIMEFRAME_LABELS[value];
+			return `<button type="button" class="timeframe-pill${active}" data-timeframe="${value}" aria-pressed="${pressed}">${escapeHtml(label)}</button>`;
+		}).join('');
+		return `
+			<div class="timeframe-pills" role="group" aria-label="Timeframe">
+				${pills}
 			</div>`;
 	}
 
@@ -741,9 +871,16 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 	private alertThresholdSection(): string {
 		const threshold = getAlertThreshold();
 		const label = formatCentsAsUsd(Math.round(threshold * 100));
+		const helpText =
+			'Shows an alert when a single request costs more than this amount.';
 		return `
 			<div class="section">
-				<p class="section-title">Alert Threshold</p>
+				<div class="section-title-row">
+					<p class="section-title">Alert Threshold</p>
+					<span class="help-icon" tabindex="0" aria-label="${escapeHtml(helpText)}">?
+						<span class="help-tooltip" role="tooltip">${escapeHtml(helpText)}</span>
+					</span>
+				</div>
 				<p class="threshold-value" id="alert-threshold-value">${escapeHtml(label)}</p>
 				<input
 					class="threshold-slider"
@@ -774,12 +911,12 @@ export class InsightsViewProvider implements vscode.WebviewViewProvider, vscode.
 	}
 }
 
-function timeframeOptions(selected: ConversationTimeframe): string {
-	return CONVERSATION_TIMEFRAMES.map((value) => {
-		const isSelected = value === selected ? ' selected' : '';
-		return `<option value="${value}"${isSelected}>${value}</option>`;
-	}).join('');
-}
+const TIMEFRAME_LABELS: Record<ConversationTimeframe, string> = {
+	'1D': '1d',
+	'7D': '7d',
+	'30D': '30d',
+	MTD: 'MTD',
+};
 
 function metricOptions(selected: ConversationMetric): string {
 	return CONVERSATION_METRICS.map((value) => {

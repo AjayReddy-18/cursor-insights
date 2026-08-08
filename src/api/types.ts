@@ -32,6 +32,11 @@ export interface ConversationClassification {
 /** Response from /api/v2/analytics/team/conversation-segments. */
 export interface ConversationSegments {
 	workTypeHistogram: ConversationHistogramItem[];
+	/**
+	 * Categories shown on Cursor's Conversation Insights Categories chart.
+	 * Distinct from classification.categoriesHistogram.
+	 */
+	categoriesHistogram: ConversationHistogramItem[];
 }
 
 /** Combined Conversation Insights payload for the selected timeframe. */

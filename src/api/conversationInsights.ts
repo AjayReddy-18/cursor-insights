@@ -127,6 +127,9 @@ export function parseConversationSegments(data: unknown): ConversationSegments {
 			'work_type',
 			'workType',
 		]),
+		categoriesHistogram: parseHistogram(record.categories_histogram, [
+			'category',
+		]),
 	};
 }
 

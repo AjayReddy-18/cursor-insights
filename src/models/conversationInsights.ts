@@ -93,14 +93,22 @@ export function getDateRangeForTimeframe(
 	}
 }
 
-/** Formats API labels cleanly for display (e.g. ktlo → Ktlo). */
+/**
+ * Preserves Cursor canonical labels.
+ *
+ * Human-readable API labels (e.g. "Bug Fixing & Debugging", "Code Explanation")
+ * are returned unchanged. Snake_case / all-lowercase enum tokens (e.g. work_type
+ * "new_feature", "ktlo") are title-cased the same way Cursor's Work Type chart
+ * shows "New Feature" / "Ktlo".
+ */
 export function formatInsightLabel(raw: string): string {
 	const trimmed = raw.trim();
 	if (!trimmed) {
 		return 'Unknown';
 	}
 
-	if (/[A-Z]/.test(trimmed) || /\s/.test(trimmed)) {
+	// Already a Cursor-facing phrase — never rename.
+	if (/[A-Z]/.test(trimmed) || /\s/.test(trimmed) || /[&/]/.test(trimmed)) {
 		return trimmed;
 	}
 
@@ -114,6 +122,7 @@ export function formatInsightLabel(raw: string): string {
 /**
  * Converts histogram items into chart segments with percentages.
  * Zero-total or empty histograms yield an empty array.
+ * Label order is preserved from the API (Cursor typically ranks by count).
  */
 export function toChartSegments(
 	items: ConversationHistogramItem[]
@@ -134,7 +143,10 @@ export function toChartSegments(
 
 /**
  * Maps the selected UI metric to the corresponding API response field.
- * Prompt Specificity uses guidance_level_distribution under the hood.
+ *
+ * Categories uses conversation-segments categories_histogram — the same series
+ * Cursor's Conversation Insights Categories chart uses (verified against live
+ * percentage distributions). Prompt Specificity maps from guidance_level_*.
  */
 export function getHistogramForMetric(
 	payload: ConversationInsightsPayload,
@@ -146,7 +158,7 @@ export function getHistogramForMetric(
 		case 'intentDistribution':
 			return payload.classification.intentDistribution;
 		case 'categories':
-			return payload.classification.categoriesHistogram;
+			return payload.segments.categoriesHistogram;
 		case 'taskComplexity':
 			return payload.classification.complexityDistribution;
 		case 'promptSpecificity':

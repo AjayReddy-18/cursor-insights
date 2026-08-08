@@ -29,6 +29,14 @@ import {
 } from '../models/conversationInsights';
 import { ConversationInsightsService } from '../services/conversationInsightsService';
 import type { ConversationInsightsPayload } from '../api/types';
+import {
+	buildPlacedLabels,
+	computeLayout,
+	conversationChartHoverScript,
+	formatPercent,
+	renderConversationDoughnut,
+	resolveCollisions,
+} from '../sidebar/conversationChart';
 
 suite('Conversation Insights timeframe', () => {
 	test('1D is today through today', () => {
@@ -120,6 +128,17 @@ suite('Conversation Insights parsing and mapping', () => {
 			{ work_type: 'ktlo', count: 6 },
 			{ work_type: 'bug', count: 3 },
 		],
+		categories_histogram: [
+			{ category: 'Code Explanation', count: 5 },
+			{ category: 'Configuration', count: 4 },
+			{ category: 'Architecture', count: 4 },
+			{ category: 'Bug Fixing & Debugging', count: 3 },
+			{ category: 'Learning', count: 2 },
+			{ category: 'API Integration', count: 2 },
+			{ category: 'Testing', count: 1 },
+			{ category: 'Security', count: 1 },
+			{ category: 'New Features', count: 1 },
+		],
 	};
 
 	test('parses conversation-classification response fields', () => {
@@ -130,17 +149,20 @@ suite('Conversation Insights parsing and mapping', () => {
 		assert.strictEqual(parsed.guidanceLevelDistribution[0].label, 'low');
 	});
 
-	test('parses conversation-segments work_type_histogram', () => {
+	test('parses conversation-segments work_type and categories histograms', () => {
 		const parsed = parseConversationSegments(segmentsFixture);
 		assert.deepStrictEqual(parsed.workTypeHistogram, [
 			{ label: 'ktlo', count: 6 },
 			{ label: 'bug', count: 3 },
 		]);
+		assert.strictEqual(parsed.categoriesHistogram[0].label, 'Code Explanation');
+		assert.strictEqual(parsed.categoriesHistogram[3].label, 'Bug Fixing & Debugging');
 	});
 
 	test('handles malformed and missing histogram fields', () => {
 		assert.deepStrictEqual(parseConversationClassification(null).categoriesHistogram, []);
 		assert.deepStrictEqual(parseConversationSegments(undefined).workTypeHistogram, []);
+		assert.deepStrictEqual(parseConversationSegments(undefined).categoriesHistogram, []);
 		assert.deepStrictEqual(
 			parseHistogram(
 				[{ count: 1 }, { work_type: 'ok', count: 'bad' }, { work_type: 'fine', count: 2 }],
@@ -164,9 +186,10 @@ suite('Conversation Insights parsing and mapping', () => {
 			getHistogramForMetric(payload, 'intentDistribution')[0].label,
 			'Ask'
 		);
+		// Categories come from segments — same series Cursor's Categories chart uses.
 		assert.strictEqual(
 			getHistogramForMetric(payload, 'categories')[0].label,
-			'New Features'
+			'Code Explanation'
 		);
 		assert.strictEqual(
 			getHistogramForMetric(payload, 'taskComplexity')[0].label,
@@ -178,7 +201,16 @@ suite('Conversation Insights parsing and mapping', () => {
 		);
 	});
 
-	test('calculates percentages and formats labels', () => {
+	test('preserves Cursor category names exactly and formats work-type tokens', () => {
+		assert.strictEqual(
+			formatInsightLabel('Bug Fixing & Debugging'),
+			'Bug Fixing & Debugging'
+		);
+		assert.strictEqual(formatInsightLabel('Code Explanation'), 'Code Explanation');
+		assert.strictEqual(formatInsightLabel('New Features'), 'New Features');
+		assert.strictEqual(formatInsightLabel('ktlo'), 'Ktlo');
+		assert.strictEqual(formatInsightLabel('new_feature'), 'New Feature');
+
 		const segments = toChartSegments([
 			{ label: 'ktlo', count: 6 },
 			{ label: 'bug', count: 3 },
@@ -190,7 +222,6 @@ suite('Conversation Insights parsing and mapping', () => {
 		assert.strictEqual(segments[0].percent, 66.66666666666666);
 		assert.strictEqual(segments[1].label, 'Bug');
 		assert.strictEqual(segments[1].percent, 33.33333333333333);
-		assert.strictEqual(formatInsightLabel('New Features'), 'New Features');
 	});
 
 	test('empty histogram yields no chart segments', () => {
@@ -198,15 +229,21 @@ suite('Conversation Insights parsing and mapping', () => {
 		assert.deepStrictEqual(toChartSegments([{ label: 'x', count: 0 }]), []);
 	});
 
-	test('getChartSegmentsForMetric uses Categories by default field', () => {
+	test('Categories metric matches Cursor segments percentage distribution', () => {
 		const payload: ConversationInsightsPayload = {
 			classification: parseConversationClassification(classificationFixture),
 			segments: parseConversationSegments(segmentsFixture),
 		};
 		const segments = getChartSegmentsForMetric(payload, 'categories');
-		assert.strictEqual(segments.length, 2);
-		assert.strictEqual(segments[0].percent, 50);
-		assert.strictEqual(segments[1].percent, 50);
+		assert.strictEqual(segments.length, 9);
+		assert.strictEqual(segments[0].label, 'Code Explanation');
+		assert.strictEqual(Number(segments[0].percent.toFixed(1)), 21.7);
+		assert.strictEqual(Number(segments[1].percent.toFixed(1)), 17.4);
+		assert.strictEqual(Number(segments[2].percent.toFixed(1)), 17.4);
+		assert.strictEqual(Number(segments[3].percent.toFixed(1)), 13.0);
+		assert.strictEqual(segments[3].label, 'Bug Fixing & Debugging');
+		assert.strictEqual(Number(segments[8].percent.toFixed(1)), 4.3);
+		assert.strictEqual(segments[8].label, 'New Features');
 	});
 });
 
@@ -251,6 +288,10 @@ suite('Conversation Insights API requests', () => {
 					}
 				: {
 						work_type_histogram: [{ work_type: 'bug', count: 2 }],
+						categories_histogram: [
+							{ category: 'Code Explanation', count: 5 },
+							{ category: 'Bug Fixing & Debugging', count: 3 },
+						],
 					};
 			return new Response(JSON.stringify(body), {
 				status: 200,
@@ -293,6 +334,7 @@ suite('Conversation Insights API requests', () => {
 
 		assert.strictEqual(payload.classification.categoriesHistogram[0].label, 'New Features');
 		assert.strictEqual(payload.segments.workTypeHistogram[0].label, 'bug');
+		assert.strictEqual(payload.segments.categoriesHistogram[0].label, 'Code Explanation');
 	});
 
 	test('fetchConversationInsights surfaces API errors', async () => {
@@ -346,9 +388,8 @@ suite('Conversation Insights service behavior', () => {
 				return new Response(
 					JSON.stringify({
 						intent_distribution: [{ intent: 'Ask', count: 4 }],
-						categories_histogram: options?.categories ?? [
-							{ category: 'New Features', count: 6 },
-							{ category: 'Bug Fixing & Debugging', count: 2 },
+						categories_histogram: [
+							{ category: 'Classification Only', count: 99 },
 						],
 						complexity_distribution: [{ complexity: 'low', count: 3 }],
 						guidance_level_distribution: [{ guidance_level: 'high', count: 5 }],
@@ -359,6 +400,10 @@ suite('Conversation Insights service behavior', () => {
 			return new Response(
 				JSON.stringify({
 					work_type_histogram: [{ work_type: 'ktlo', count: 9 }],
+					categories_histogram: options?.categories ?? [
+						{ category: 'Code Explanation', count: 6 },
+						{ category: 'Bug Fixing & Debugging', count: 2 },
+					],
 				}),
 				{ status: 200, headers: { 'Content-Type': 'application/json' } }
 			);
@@ -378,7 +423,7 @@ suite('Conversation Insights service behavior', () => {
 		service.setMetric('categories');
 		await service.refresh('MTD');
 		assert.strictEqual(fetchCount, 2);
-		assert.strictEqual(service.getSegments()[0].label, 'New Features');
+		assert.strictEqual(service.getSegments()[0].label, 'Code Explanation');
 
 		service.setMetric('workType');
 		assert.strictEqual(fetchCount, 2);
@@ -462,5 +507,139 @@ suite('Conversation Insights persistence', () => {
 		const next: ConversationMetric = 'taskComplexity';
 		await setConversationMetric(next);
 		assert.strictEqual(getConversationMetric(), 'taskComplexity');
+	});
+});
+
+suite('Conversation Insights donut visualization', () => {
+	const cursorParitySegments = toChartSegments([
+		{ label: 'Code Explanation', count: 5 },
+		{ label: 'Configuration', count: 4 },
+		{ label: 'Architecture', count: 4 },
+		{ label: 'Bug Fixing & Debugging', count: 3 },
+		{ label: 'Learning', count: 2 },
+		{ label: 'API Integration', count: 2 },
+		{ label: 'Testing', count: 1 },
+		{ label: 'Security', count: 1 },
+		{ label: 'New Features', count: 1 },
+	]);
+
+	function assertDonutStructure(svg: string, labels: string[]): void {
+		assert.ok(svg.includes('data-chart="conversation-donut"'));
+		assert.ok(svg.includes('donut-slice') || svg.includes('donut-slices'));
+		for (const label of labels) {
+			const escaped = label.replace(/&/g, '&amp;');
+			assert.ok(
+				svg.includes(escaped) || svg.includes(label),
+				`missing label ${label}`
+			);
+		}
+		const leaders = svg.match(/class="donut-leader"/g) || [];
+		const labelNodes = svg.match(/class="chart-label"/g) || [];
+		assert.strictEqual(leaders.length, labels.length);
+		assert.strictEqual(labelNodes.length, labels.length);
+		assert.ok(!svg.includes('bar-chart'));
+		assert.ok(!svg.includes('<table'));
+	}
+
+	test('always renders a donut with leader lines for Cursor parity dataset', () => {
+		const svg = renderConversationDoughnut(cursorParitySegments);
+		assertDonutStructure(
+			svg,
+			cursorParitySegments.map((segment) => segment.label)
+		);
+		assert.ok(svg.includes('Bug Fixing &amp; Debugging'));
+		assert.ok(svg.includes('21.7%'));
+		assert.ok(svg.includes('Code Explanation: 5 (21.7%)'));
+	});
+
+	test('renders donut for 2, 4, 9, and 15+ categories', () => {
+		const sets = [
+			toChartSegments([
+				{ label: 'A', count: 1 },
+				{ label: 'B', count: 1 },
+			]),
+			toChartSegments([
+				{ label: 'A', count: 1 },
+				{ label: 'B', count: 1 },
+				{ label: 'C', count: 1 },
+				{ label: 'D', count: 1 },
+			]),
+			cursorParitySegments,
+			toChartSegments(
+				Array.from({ length: 16 }, (_, index) => ({
+					label: `Category ${index + 1}`,
+					count: 16 - index,
+				}))
+			),
+		];
+
+		for (const set of sets) {
+			const svg = renderConversationDoughnut(set, { width: 220 });
+			assertDonutStructure(
+				svg,
+				set.map((segment) => segment.label)
+			);
+		}
+	});
+
+	test('keeps long category names readable without ellipsis truncation', () => {
+		const segments = toChartSegments([
+			{ label: 'Bug Fixing & Debugging', count: 3 },
+			{ label: 'Very Long Category Name For Integration Testing', count: 2 },
+		]);
+		const svg = renderConversationDoughnut(segments, { width: 200 });
+		assert.ok(svg.includes('Bug Fixing &amp; Debugging'));
+		assert.ok(svg.includes('Very Long Category Name For Integration Testing'));
+		assert.ok(!svg.includes('…'));
+		assert.ok(!/Bug Fixing[^<]*\.\.\./.test(svg));
+	});
+
+	test('collision resolution separates neighbouring label Y positions', () => {
+		const layout = computeLayout(9, 220);
+		const crowded = [
+			{ labelY: 100, lines: ['one'] },
+			{ labelY: 101, lines: ['two'] },
+			{ labelY: 102, lines: ['three'] },
+		];
+		resolveCollisions(crowded, layout);
+		assert.ok(crowded[1].labelY - crowded[0].labelY >= layout.minLabelSpacing);
+		assert.ok(crowded[2].labelY - crowded[1].labelY >= layout.minLabelSpacing);
+	});
+
+	test('placed labels include leader geometry and full tooltips', () => {
+		const layout = computeLayout(cursorParitySegments.length, 240);
+		const total = cursorParitySegments.reduce((sum, s) => sum + s.count, 0);
+		const placed = buildPlacedLabels(cursorParitySegments, total, layout);
+		assert.strictEqual(placed.length, 9);
+		for (const item of placed) {
+			assert.ok(Number.isFinite(item.sliceX));
+			assert.ok(Number.isFinite(item.elbowX));
+			assert.ok(Number.isFinite(item.labelX));
+			assert.ok(item.tooltip.includes(item.segment.label));
+			assert.ok(item.tooltip.includes(String(item.segment.count)));
+			assert.ok(item.tooltip.includes('%'));
+		}
+	});
+
+	test('hover script dims inactive categories via is-dimmed class toggles', () => {
+		const script = conversationChartHoverScript();
+		assert.ok(script.includes('is-dimmed'));
+		assert.ok(script.includes('is-active'));
+		assert.ok(script.includes('data-index'));
+		assert.ok(script.includes('mouseenter'));
+		assert.ok(script.includes('mouseleave'));
+	});
+
+	test('narrow sidebar width still keeps every category', () => {
+		const svg = renderConversationDoughnut(cursorParitySegments, { width: 180 });
+		assertDonutStructure(
+			svg,
+			cursorParitySegments.map((segment) => segment.label)
+		);
+	});
+
+	test('percent formatting matches Cursor one-decimal style', () => {
+		assert.strictEqual(formatPercent(21.739), '21.7%');
+		assert.strictEqual(formatPercent(50), '50%');
 	});
 });
