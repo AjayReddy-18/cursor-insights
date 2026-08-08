@@ -1,12 +1,12 @@
 # Cursor Insights
 
-Display your Cursor monthly usage directly inside Cursor, along with recent requests and configurable high-cost request alerts.
+Display your Cursor monthly usage directly inside Cursor, along with recent requests, conversation insights, and configurable high-cost request alerts.
 
 ## Install in Cursor
 
 [![Install in Cursor](https://img.shields.io/badge/Install%20in-Cursor-111111?style=for-the-badge&logo=visualstudiocode&logoColor=white)](https://ajayreddy-18.github.io/cursor-insights/)
 
-Click the button above to open the [install page](https://ajayreddy-18.github.io/cursor-insights/). From there, **Install in Cursor** opens Cursor directly to the Cursor Insights extension.
+Click the button above to open Cursor directly to the Cursor Insights extension.
 
 ### Quick install
 
@@ -21,6 +21,7 @@ Click the button above to open the [install page](https://ajayreddy-18.github.io
 - Dedicated Activity Bar view with:
   - Monthly usage and progress bar
   - Recent Requests (last 3 requests with model and cost)
+  - Conversation Insights chart with timeframe and metric controls
   - Configurable High Cost Alert threshold
   - Quick actions (Refresh, Open Usage Dashboard)
 - Automatic monthly usage refresh every 60 seconds
@@ -36,7 +37,7 @@ Prefer offline installation? You can install from a `.vsix` instead.
 ### 1) Download the `.vsix` from GitHub
 
 1. Open this repository's **Releases** page.
-2. Download the latest `.vsix` asset (for example, `cursor-insights-1.0.0.vsix`).
+2. Download the latest `.vsix` asset (for example, `cursor-insights-1.2.0.vsix`).
 
 ### 2) Install the extension
 
@@ -80,11 +81,12 @@ The **Cursor Insights** Activity Bar dashboard includes:
 
 - Monthly usage with progress bar
 - Recent Requests (last 3 requests showing time, model and cost)
+- Conversation Insights doughnut chart with timeframe (`1D`, `7D`, `30D`, `MTD`) and metric selection
 - Configurable High Cost Alert threshold slider
 - Refresh monthly usage and recent requests
 - Open Cursor Usage Dashboard
 
-![Cursor Insights sidebar showing monthly usage, recent requests and alert threshold](https://raw.githubusercontent.com/AjayReddy-18/cursor-insights/main/images/activity-bar.png)
+![Cursor Insights Activity Bar showing monthly usage, recent requests, conversation insights and alert threshold](https://raw.githubusercontent.com/AjayReddy-18/cursor-insights/main/images/activity-bar.png)
 
 ---
 

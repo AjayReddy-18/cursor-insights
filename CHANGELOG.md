@@ -4,6 +4,24 @@ All notable changes to the "Cursor Insights" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+# 1.2.0
+
+### Added
+
+- **Conversation Insights** in the Activity Bar dashboard, with a doughnut chart for your selected metric
+- Timeframe controls for Conversation Insights (`1D`, `7D`, `30D`, `MTD`)
+- Metric selector for Conversation Insights (Work Type, Intent Distribution, Categories, Task Complexity, Prompt Specificity)
+- Cross-window coordination for High Cost Request Alerts so only one Cursor window polls usage and shows each alert
+
+### Fixed
+
+- High Cost Request Alerts could duplicate or race when multiple Cursor windows were open
+- Activity Bar dashboard rendering issues for Conversation Insights
+
+### Changed
+
+- Updated Activity Bar screenshot to include Conversation Insights
+
 # 1.1.0
 
 ### Changed
