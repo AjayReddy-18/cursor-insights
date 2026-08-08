@@ -33,7 +33,9 @@ export function activate(context: vscode.ExtensionContext): void {
 	const recentRequestsService = new RecentRequestsService(auth);
 	const conversationInsightsService = new ConversationInsightsService(auth);
 	conversationInsightsService.setMetric(getConversationMetric());
-	const highCostAlertService = new HighCostAlertService(auth);
+	const highCostAlertService = new HighCostAlertService(auth, {
+		storageDir: context.globalStorageUri.fsPath,
+	});
 	const statusBar = new CursorInsightsStatusBar(usageService);
 	const dashboard = new InsightsViewProvider(
 		usageService,

@@ -11,6 +11,9 @@ const configStore = new Map();
 
 const vscode = {
 	window: {
+		state: {
+			focused: true,
+		},
 		createOutputChannel() {
 			return {
 				appendLine() {},
@@ -20,6 +23,23 @@ const vscode = {
 		},
 		showWarningMessage: async () => undefined,
 		showInformationMessage: async () => undefined,
+		onDidChangeWindowState(listener) {
+			vscode.window._focusListener = listener;
+			return {
+				dispose() {
+					if (vscode.window._focusListener === listener) {
+						vscode.window._focusListener = undefined;
+					}
+				},
+			};
+		},
+		_focusListener: undefined,
+		_setFocused(focused) {
+			vscode.window.state.focused = focused;
+			if (typeof vscode.window._focusListener === 'function') {
+				vscode.window._focusListener({ focused });
+			}
+		},
 	},
 	workspace: {
 		getConfiguration(section) {

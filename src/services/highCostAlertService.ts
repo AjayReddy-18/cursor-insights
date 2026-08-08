@@ -10,78 +10,198 @@ import type { UsageEvent } from '../api/types';
 import type { AuthProvider } from '../auth/types';
 import { getAlertThreshold } from '../config';
 import { log, logError } from '../logger';
+import { UsageMonitorCoordinator } from './usageMonitorCoordination';
 
 const POLL_INTERVAL_MS = 60_000;
+const COORDINATION_INTERVAL_MS = 5_000;
 const IGNORE_BUTTON = 'Ignore this conversation';
 const OK_BUTTON = 'OK';
 
+export type HighCostAlertServiceOptions = {
+	/** Directory shared across all Cursor windows (typically globalStorageUri). */
+	storageDir: string;
+	instanceId?: string;
+	isWindowFocused?: () => boolean;
+	now?: () => number;
+	pollIntervalMs?: number;
+	coordinationIntervalMs?: number;
+	leaseTtlMs?: number;
+	/** Injected for tests — defaults to the real API helpers. */
+	fetchLatestUsageEvent?: typeof fetchLatestUsageEvent;
+	fetchCurrentTeamId?: typeof fetchCurrentTeamId;
+	fetchIndividualUsage?: typeof fetchIndividualUsage;
+	getAlertThreshold?: typeof getAlertThreshold;
+	showInformationMessage?: (
+		message: string,
+		...items: string[]
+	) => Thenable<string | undefined>;
+};
+
 /**
- * Independently polls for the latest Cursor usage event and alerts when
- * a new request exceeds the configured cost threshold.
+ * Account-level high-cost usage monitor.
+ *
+ * Across multiple Cursor windows, a single elected leader polls usage.
+ * Threshold-crossing alerts are recorded once in shared state and shown only
+ * in the currently focused Cursor window.
  */
 export class HighCostAlertService implements vscode.Disposable {
 	private pollTimer: ReturnType<typeof setInterval> | undefined;
+	private coordinationTimer: ReturnType<typeof setInterval> | undefined;
 	private pollInFlight: Promise<void> | undefined;
-	private lastProcessedId: string | undefined;
+	private tickQueue: Promise<void> = Promise.resolve();
 	private initialized = false;
 	private teamId: number | undefined;
 	private billingCycleStart: Date | undefined;
 	private billingCycleEnd: Date | undefined;
-	private readonly ignoredConversations = new Set<string>();
+	private readonly coordinator: UsageMonitorCoordinator;
+	private readonly isWindowFocused: () => boolean;
+	private readonly pollIntervalMs: number;
+	private readonly coordinationIntervalMs: number;
+	private readonly fetchLatestUsageEvent: typeof fetchLatestUsageEvent;
+	private readonly fetchCurrentTeamId: typeof fetchCurrentTeamId;
+	private readonly fetchIndividualUsage: typeof fetchIndividualUsage;
+	private readonly getAlertThreshold: typeof getAlertThreshold;
+	private readonly showInformationMessage: (
+		message: string,
+		...items: string[]
+	) => Thenable<string | undefined>;
+	private readonly focusDisposable: vscode.Disposable;
+	private showingAlert = false;
 
-	constructor(private readonly auth: AuthProvider) {}
+	constructor(
+		private readonly auth: AuthProvider,
+		options: HighCostAlertServiceOptions
+	) {
+		this.coordinator = new UsageMonitorCoordinator(options.storageDir, {
+			instanceId: options.instanceId,
+			now: options.now,
+			leaseTtlMs: options.leaseTtlMs,
+		});
+		this.isWindowFocused =
+			options.isWindowFocused ?? (() => vscode.window.state.focused);
+		this.pollIntervalMs = options.pollIntervalMs ?? POLL_INTERVAL_MS;
+		this.coordinationIntervalMs =
+			options.coordinationIntervalMs ?? COORDINATION_INTERVAL_MS;
+		this.fetchLatestUsageEvent =
+			options.fetchLatestUsageEvent ?? fetchLatestUsageEvent;
+		this.fetchCurrentTeamId = options.fetchCurrentTeamId ?? fetchCurrentTeamId;
+		this.fetchIndividualUsage =
+			options.fetchIndividualUsage ?? fetchIndividualUsage;
+		this.getAlertThreshold = options.getAlertThreshold ?? getAlertThreshold;
+		this.showInformationMessage =
+			options.showInformationMessage ??
+			((message, ...items) =>
+				vscode.window.showInformationMessage(message, ...items));
+
+		this.focusDisposable = vscode.window.onDidChangeWindowState(() => {
+			if (this.isWindowFocused()) {
+				void this.tryShowPendingAlert();
+			}
+		});
+	}
+
+	/** Exposed for tests. */
+	getInstanceId(): string {
+		return this.coordinator.instanceId;
+	}
+
+	/** Exposed for tests. */
+	isLeader(): boolean {
+		return this.coordinator.isLeader();
+	}
 
 	async initialize(): Promise<void> {
 		if (!(await this.auth.isAuthenticated())) {
 			return;
 		}
 
-		// Already polling after a prior successful init / refresh.
-		if (this.pollTimer !== undefined) {
+		// Already running after a prior successful init / refresh.
+		if (this.coordinationTimer !== undefined) {
 			return;
 		}
 
-		await this.poll({ bootstrap: true });
-		this.startPolling();
+		await this.tick({ bootstrap: true });
+		this.startTimers();
 	}
 
 	dispose(): void {
-		this.stopPolling();
-		this.ignoredConversations.clear();
+		this.stopTimers();
+		this.focusDisposable.dispose();
+		void this.coordinator.releaseLeadership();
 	}
 
-	private startPolling(): void {
-		this.stopPolling();
-		log('High-cost alert polling started');
+	private startTimers(): void {
+		this.stopTimers();
+		log('High-cost alert monitoring started');
+
 		this.pollTimer = setInterval(() => {
-			void this.poll({ bootstrap: false });
-		}, POLL_INTERVAL_MS);
+			void this.tick({ bootstrap: false, usagePoll: true });
+		}, this.pollIntervalMs);
+
+		this.coordinationTimer = setInterval(() => {
+			void this.tick({ bootstrap: false, usagePoll: false });
+		}, this.coordinationIntervalMs);
 	}
 
-	private stopPolling(): void {
+	private stopTimers(): void {
 		if (this.pollTimer !== undefined) {
 			clearInterval(this.pollTimer);
 			this.pollTimer = undefined;
 		}
+		if (this.coordinationTimer !== undefined) {
+			clearInterval(this.coordinationTimer);
+			this.coordinationTimer = undefined;
+		}
 	}
 
-	private async poll(options: { bootstrap: boolean }): Promise<void> {
+	/**
+	 * Coordination tick: renew/elect leader, optionally poll usage, show pending alerts.
+	 * Public for tests so multi-window scenarios can be driven without waiting on timers.
+	 */
+	async tick(options: {
+		bootstrap: boolean;
+		usagePoll?: boolean;
+	}): Promise<void> {
+		const run = this.tickQueue.then(() => this.doTick(options));
+		// Keep the queue alive even if a tick fails.
+		this.tickQueue = run.then(
+			() => undefined,
+			() => undefined
+		);
+		return run;
+	}
+
+	private async doTick(options: {
+		bootstrap: boolean;
+		usagePoll?: boolean;
+	}): Promise<void> {
+		if (!(await this.auth.isAuthenticated())) {
+			return;
+		}
+
+		const isLeader = await this.coordinator.tryBecomeLeader();
+		const shouldPollUsage = options.usagePoll !== false;
+
+		if (isLeader && shouldPollUsage) {
+			await this.pollUsage({ bootstrap: options.bootstrap });
+		}
+
+		await this.tryShowPendingAlert();
+	}
+
+	private async pollUsage(options: { bootstrap: boolean }): Promise<void> {
 		if (this.pollInFlight) {
 			return this.pollInFlight;
 		}
 
-		this.pollInFlight = this.doPoll(options).finally(() => {
+		this.pollInFlight = this.doPollUsage(options).finally(() => {
 			this.pollInFlight = undefined;
 		});
 
 		return this.pollInFlight;
 	}
 
-	private async doPoll(options: { bootstrap: boolean }): Promise<void> {
-		if (!(await this.auth.isAuthenticated())) {
-			return;
-		}
-
+	private async doPollUsage(options: { bootstrap: boolean }): Promise<void> {
 		log('High-cost alert polling tick started');
 
 		try {
@@ -94,7 +214,7 @@ export class HighCostAlertService implements vscode.Disposable {
 				return;
 			}
 
-			const event = await fetchLatestUsageEvent(this.auth, {
+			const event = await this.fetchLatestUsageEvent(this.auth, {
 				teamId: this.teamId,
 				billingCycleStart: this.billingCycleStart,
 				billingCycleEnd: this.billingCycleEnd,
@@ -115,20 +235,36 @@ export class HighCostAlertService implements vscode.Disposable {
 				`Latest usage event received: id=${eventId} model=${event.model} chargedCents=${event.chargedCents}`
 			);
 
-			if (options.bootstrap || !this.initialized) {
-				this.lastProcessedId = eventId;
-				this.initialized = true;
-				log(`Initialized last processed event: ${eventId}`);
-				return;
-			}
+			const threshold = this.getAlertThreshold();
+			const bootstrap = options.bootstrap || !this.initialized;
+			const result = await this.coordinator.advanceToEvent(event, {
+				threshold,
+				bootstrap,
+			});
+			this.initialized = true;
 
-			if (eventId === this.lastProcessedId) {
-				return;
+			switch (result) {
+				case 'bootstrapped':
+					log(`Initialized last processed event: ${eventId}`);
+					break;
+				case 'unchanged':
+					break;
+				case 'skipped_ignored':
+					log(`Skipping ignored conversation: ${event.conversationId}`);
+					break;
+				case 'skipped_below_threshold':
+					log(`New usage event detected: ${eventId}`);
+					break;
+				case 'alert_enqueued':
+					log(`New usage event detected: ${eventId}`);
+					log(
+						`Threshold exceeded: cost=$${(event.chargedCents / 100).toFixed(2)} threshold=$${threshold.toFixed(2)}`
+					);
+					break;
+				case 'alert_duplicate':
+					log(`Duplicate alert suppressed for event: ${eventId}`);
+					break;
 			}
-
-			log(`New usage event detected: ${eventId}`);
-			this.lastProcessedId = eventId;
-			await this.processNewEvent(event);
 		} catch (error) {
 			logError('High-cost alert polling failed:', error);
 		}
@@ -136,7 +272,7 @@ export class HighCostAlertService implements vscode.Disposable {
 
 	private async ensureContext(): Promise<void> {
 		if (this.teamId === undefined) {
-			this.teamId = await fetchCurrentTeamId(this.auth);
+			this.teamId = await this.fetchCurrentTeamId(this.auth);
 			log(`Resolved teamId: ${this.teamId}`);
 		}
 
@@ -145,7 +281,7 @@ export class HighCostAlertService implements vscode.Disposable {
 			Date.now() > this.billingCycleEnd.getTime();
 
 		if (!this.billingCycleStart || !this.billingCycleEnd || cycleExpired) {
-			const usage = await fetchIndividualUsage(this.auth);
+			const usage = await this.fetchIndividualUsage(this.auth);
 			this.billingCycleStart = usage.billingCycleStart;
 			this.billingCycleEnd = usage.billingCycleEnd;
 			log(
@@ -154,26 +290,23 @@ export class HighCostAlertService implements vscode.Disposable {
 		}
 	}
 
-	private async processNewEvent(event: UsageEvent): Promise<void> {
-		if (
-			event.conversationId &&
-			this.ignoredConversations.has(event.conversationId)
-		) {
-			log(`Skipping ignored conversation: ${event.conversationId}`);
+	private async tryShowPendingAlert(): Promise<void> {
+		if (this.showingAlert || !this.isWindowFocused()) {
 			return;
 		}
 
-		const threshold = getAlertThreshold();
-		const costUsd = event.chargedCents / 100;
-
-		if (costUsd <= threshold) {
+		const pending = await this.coordinator.claimPendingAlert();
+		if (!pending) {
 			return;
 		}
 
-		log(
-			`Threshold exceeded: cost=$${costUsd.toFixed(2)} threshold=$${threshold.toFixed(2)}`
-		);
-		await this.showAlert(event, threshold);
+		this.showingAlert = true;
+		try {
+			await this.showAlert(pending.event, pending.threshold);
+			await this.coordinator.markAlertHandled(pending.eventId);
+		} finally {
+			this.showingAlert = false;
+		}
 	}
 
 	private async showAlert(event: UsageEvent, threshold: number): Promise<void> {
@@ -191,7 +324,7 @@ export class HighCostAlertService implements vscode.Disposable {
 
 		log(`Alert shown: cost=${cost} model=${model}`);
 
-		const choice = await vscode.window.showInformationMessage(
+		const choice = await this.showInformationMessage(
 			message,
 			OK_BUTTON,
 			IGNORE_BUTTON
@@ -199,7 +332,7 @@ export class HighCostAlertService implements vscode.Disposable {
 
 		if (choice === IGNORE_BUTTON) {
 			if (event.conversationId) {
-				this.ignoredConversations.add(event.conversationId);
+				await this.coordinator.ignoreConversation(event.conversationId);
 				log(`Conversation ignored: ${event.conversationId}`);
 			} else {
 				log('Ignore requested but event has no conversationId');
