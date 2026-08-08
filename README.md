@@ -4,9 +4,9 @@ Display your Cursor monthly usage directly inside Cursor, along with recent requ
 
 ## Install in Cursor
 
-[![Install in Cursor](https://img.shields.io/badge/Install%20in-Cursor-111111?style=for-the-badge&logo=visualstudiocode&logoColor=white)](https://ajayreddy-18.github.io/cursor-insights/)
+<a href="https://ajayreddy-18.github.io/cursor-insights/" target="_blank" rel="noopener noreferrer"><img alt="Install in Cursor" src="https://img.shields.io/badge/Install%20in-Cursor-111111?style=for-the-badge&logo=visualstudiocode&logoColor=white" /></a>
 
-Click the button above to open Cursor directly to the Cursor Insights extension.
+Click the button above to open a new tab that launches Cursor directly to the Cursor Insights extension.
 
 ### Quick install
 

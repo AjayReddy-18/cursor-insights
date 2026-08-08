@@ -2,16 +2,21 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="refresh" content="0;url=cursor:extension/ajayreddy.cursor-insights" />
   <title>Opening Cursor Insights…</title>
   <script>
-    location.replace("cursor:extension/ajayreddy.cursor-insights");
+    (function () {
+      var INSTALL_URI = "cursor:extension/ajayreddy.cursor-insights";
+      // Launch Cursor from this tab. The README link opens this page with
+      // target="_blank", so the original page (e.g. GitHub) stays put.
+      window.location.href = INSTALL_URI;
+    })();
   </script>
 </head>
 <body>
   <p>
     Opening Cursor…
     <a href="cursor:extension/ajayreddy.cursor-insights">Click here if nothing happens</a>.
+    You can close this tab afterward.
   </p>
 </body>
 </html>
