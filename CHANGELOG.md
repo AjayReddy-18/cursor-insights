@@ -4,9 +4,18 @@ All notable changes to the "Cursor Insights" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+# 1.3.0
+
+### Fixed
+
+- **Prompt Specificity** now correctly reads from `conversation-segments.guidance_level_distribution` instead of `conversation-classification.guidance_level_distribution`. Percentages are calculated from the raw counts returned by the API (e.g. high=65, medium=5, low=5 → High=86.7%, Medium=6.7%, Low=6.7%).
+- Multi-window alert delivery: alerts are now reliably targeted at the focused Cursor window at the moment a threshold crossing is detected. Non-targeted windows are skipped even if they are also focused.
+- Test reliability: leadership handoff tests no longer race against the asynchronous `releaseLeadership()` call issued by `dispose()`.
+
 # 1.2.0
 
 ### Added
+
 
 - **Conversation Insights** in the Activity Bar dashboard, with a doughnut chart for your selected metric
 - Timeframe controls for Conversation Insights (`1D`, `7D`, `30D`, `MTD`)

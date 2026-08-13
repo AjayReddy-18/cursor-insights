@@ -372,6 +372,8 @@ suite('HighCostAlertService multi-window behavior', () => {
 			assert.strictEqual(alertCalls.length, 1);
 
 			first.dispose();
+			// Allow the async releaseLeadership() (fire-and-forget in dispose) to complete.
+			await new Promise<void>((resolve) => setTimeout(resolve, 50));
 			await second.tick({ bootstrap: false, usagePoll: true });
 			assert.strictEqual(second.isLeader(), true);
 			assert.strictEqual(alertCalls.length, 1);
@@ -566,7 +568,12 @@ suite('HighCostAlertService multi-window behavior', () => {
 	test('wrong (non-targeted) window cannot claim a targeted alert', async () => {
 		// Leader A targets C. Window B should not be able to claim the alert
 		// even if it is also focused at the same time.
-		const a = createService('a', { initiallyFocused: false });
+		// Create A with getFocusedInstanceId always returning 'c' so the alert
+		// is reliably targeted at c without a mid-test leadership handoff race.
+		const a = createService('a', {
+			initiallyFocused: false,
+			getFocusedInstanceId: () => 'c',
+		});
 		const b = createService('b', { initiallyFocused: true }); // focused but NOT target
 		const c = createService('c', { initiallyFocused: true }); // focused AND target
 
@@ -576,18 +583,8 @@ suite('HighCostAlertService multi-window behavior', () => {
 
 			latestEvent = makeEvent({ chargedCents: 500, timestamp: '13' });
 
-			// Override getFocusedInstanceId on A so it always reports 'c' as the
-			// focused window, regardless of the map order.
-			const strictA = createService('a-strict', {
-				initiallyFocused: false,
-				getFocusedInstanceId: () => 'c',
-			});
-			a.dispose();
-
-			await strictA.tick({ bootstrap: true });
-			assert.strictEqual(strictA.isLeader(), true);
-
-			await strictA.tick({ bootstrap: false, usagePoll: true });
+			// A detects threshold crossing: getFocusedInstanceId returns 'c' → targets c.
+			await a.tick({ bootstrap: false, usagePoll: true });
 			assert.strictEqual(alertCalls.length, 0);
 
 			// B ticks — focused but target is c → must be skipped.

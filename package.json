@@ -2,7 +2,7 @@
   "name": "cursor-insights",
   "displayName": "Cursor Insights",
   "description": "Monitor Cursor AI usage, recent requests and high-cost request alerts directly inside Cursor.",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "publisher": "ajayreddy",
   "icon": "images/icon.png",
   "author": {

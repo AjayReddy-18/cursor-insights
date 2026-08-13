@@ -1,6 +1,7 @@
 # Exclude development and CI files from the packaged .vsix.
 .vscode/**
 .vscode-test/**
+.vscode-test.mjs
 .github/**
 src/**
 node_modules/**
