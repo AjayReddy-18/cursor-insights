@@ -139,6 +139,12 @@ suite('Conversation Insights parsing and mapping', () => {
 			{ category: 'Security', count: 1 },
 			{ category: 'New Features', count: 1 },
 		],
+		// Prompt Specificity comes from conversation-segments, not classification.
+		guidance_level_distribution: [
+			{ guidance_level: 'high', count: 65 },
+			{ guidance_level: 'medium', count: 5 },
+			{ guidance_level: 'low', count: 5 },
+		],
 	};
 
 	test('parses conversation-classification response fields', () => {
@@ -149,7 +155,7 @@ suite('Conversation Insights parsing and mapping', () => {
 		assert.strictEqual(parsed.guidanceLevelDistribution[0].label, 'low');
 	});
 
-	test('parses conversation-segments work_type and categories histograms', () => {
+	test('parses conversation-segments work_type, categories, and guidance_level histograms', () => {
 		const parsed = parseConversationSegments(segmentsFixture);
 		assert.deepStrictEqual(parsed.workTypeHistogram, [
 			{ label: 'ktlo', count: 6 },
@@ -157,12 +163,20 @@ suite('Conversation Insights parsing and mapping', () => {
 		]);
 		assert.strictEqual(parsed.categoriesHistogram[0].label, 'Code Explanation');
 		assert.strictEqual(parsed.categoriesHistogram[3].label, 'Bug Fixing & Debugging');
+		// guidance_level_distribution must be parsed from segments
+		assert.deepStrictEqual(parsed.guidanceLevelDistribution, [
+			{ label: 'high', count: 65 },
+			{ label: 'medium', count: 5 },
+			{ label: 'low', count: 5 },
+		]);
 	});
 
 	test('handles malformed and missing histogram fields', () => {
 		assert.deepStrictEqual(parseConversationClassification(null).categoriesHistogram, []);
 		assert.deepStrictEqual(parseConversationSegments(undefined).workTypeHistogram, []);
 		assert.deepStrictEqual(parseConversationSegments(undefined).categoriesHistogram, []);
+		// Missing guidance_level_distribution in segments yields empty array
+		assert.deepStrictEqual(parseConversationSegments(undefined).guidanceLevelDistribution, []);
 		assert.deepStrictEqual(
 			parseHistogram(
 				[{ count: 1 }, { work_type: 'ok', count: 'bad' }, { work_type: 'fine', count: 2 }],
@@ -195,10 +209,79 @@ suite('Conversation Insights parsing and mapping', () => {
 			getHistogramForMetric(payload, 'taskComplexity')[0].label,
 			'trivial'
 		);
+		// Prompt Specificity MUST read from segments.guidanceLevelDistribution,
+		// NOT from classification.guidanceLevelDistribution.
+		// segmentsFixture has high=65 (first entry); classificationFixture has low=3 (first entry).
 		assert.strictEqual(
 			getHistogramForMetric(payload, 'promptSpecificity')[0].label,
-			'low'
+			'high'
 		);
+		assert.notStrictEqual(
+			getHistogramForMetric(payload, 'promptSpecificity')[0].label,
+			'low',
+			'promptSpecificity must NOT use classification.guidanceLevelDistribution'
+		);
+	});
+
+	test('Prompt Specificity percentages match verified 7-day data (high=86.7%, medium=6.7%, low=6.7%)', () => {
+		// Verified against Cursor dashboard for 7D: high=65, medium=5, low=5 → total=75
+		const segmentsWithVerifiedData = {
+			work_type_histogram: [],
+			categories_histogram: [],
+			guidance_level_distribution: [
+				{ guidance_level: 'high', count: 65 },
+				{ guidance_level: 'medium', count: 5 },
+				{ guidance_level: 'low', count: 5 },
+			],
+		};
+		const payload: ConversationInsightsPayload = {
+			classification: parseConversationClassification(classificationFixture),
+			segments: parseConversationSegments(segmentsWithVerifiedData),
+		};
+		const segments = getChartSegmentsForMetric(payload, 'promptSpecificity');
+		assert.strictEqual(segments.length, 3);
+		const high = segments.find((s) => s.label === 'High');
+		const medium = segments.find((s) => s.label === 'Medium');
+		const low = segments.find((s) => s.label === 'Low');
+		assert.ok(high, 'missing High segment');
+		assert.ok(medium, 'missing Medium segment');
+		assert.ok(low, 'missing Low segment');
+		assert.strictEqual(Number(high!.percent.toFixed(1)), 86.7);
+		assert.strictEqual(Number(medium!.percent.toFixed(1)), 6.7);
+		assert.strictEqual(Number(low!.percent.toFixed(1)), 6.7);
+	});
+
+	test('Prompt Specificity uses segments, other metrics remain on their original sources', () => {
+		const payload: ConversationInsightsPayload = {
+			classification: parseConversationClassification(classificationFixture),
+			segments: parseConversationSegments(segmentsFixture),
+		};
+		// intentDistribution — classification
+		assert.strictEqual(getHistogramForMetric(payload, 'intentDistribution')[0].label, 'Ask');
+		// taskComplexity — classification
+		assert.strictEqual(getHistogramForMetric(payload, 'taskComplexity')[0].label, 'trivial');
+		// workType — segments
+		assert.strictEqual(getHistogramForMetric(payload, 'workType')[0].label, 'ktlo');
+		// categories — segments
+		assert.strictEqual(getHistogramForMetric(payload, 'categories')[0].label, 'Code Explanation');
+		// promptSpecificity — segments (not classification)
+		const ps = getHistogramForMetric(payload, 'promptSpecificity');
+		assert.strictEqual(ps[0].label, 'high');
+		assert.strictEqual(ps[0].count, 65);
+	});
+
+	test('empty/missing guidance_level_distribution in segments yields empty state for Prompt Specificity', () => {
+		const emptySegments = parseConversationSegments({
+			work_type_histogram: [],
+			categories_histogram: [],
+			// no guidance_level_distribution key
+		});
+		const payload: ConversationInsightsPayload = {
+			classification: parseConversationClassification(classificationFixture),
+			segments: emptySegments,
+		};
+		const segments = getChartSegmentsForMetric(payload, 'promptSpecificity');
+		assert.deepStrictEqual(segments, [], 'missing distribution must yield empty chart segments');
 	});
 
 	test('preserves Cursor category names exactly and formats work-type tokens', () => {
@@ -378,6 +461,7 @@ suite('Conversation Insights service behavior', () => {
 	function mockInsightsApis(options?: {
 		fail?: boolean;
 		categories?: Array<{ category: string; count: number }>;
+		guidanceLevelDistribution?: Array<{ guidance_level: string; count: number }>;
 	}): void {
 		globalThis.fetch = (async (input: string | URL | Request) => {
 			if (options?.fail) {
@@ -392,6 +476,8 @@ suite('Conversation Insights service behavior', () => {
 							{ category: 'Classification Only', count: 99 },
 						],
 						complexity_distribution: [{ complexity: 'low', count: 3 }],
+						// Classification also has guidance_level_distribution, but
+						// Prompt Specificity must NOT use this — it uses segments.
 						guidance_level_distribution: [{ guidance_level: 'high', count: 5 }],
 					}),
 					{ status: 200, headers: { 'Content-Type': 'application/json' } }
@@ -403,6 +489,12 @@ suite('Conversation Insights service behavior', () => {
 					categories_histogram: options?.categories ?? [
 						{ category: 'Code Explanation', count: 6 },
 						{ category: 'Bug Fixing & Debugging', count: 2 },
+					],
+					// Verified 7-day data from Cursor dashboard: high=65, medium=5, low=5
+					guidance_level_distribution: options?.guidanceLevelDistribution ?? [
+						{ guidance_level: 'high', count: 65 },
+						{ guidance_level: 'medium', count: 5 },
+						{ guidance_level: 'low', count: 5 },
 					],
 				}),
 				{ status: 200, headers: { 'Content-Type': 'application/json' } }
@@ -430,9 +522,16 @@ suite('Conversation Insights service behavior', () => {
 		assert.strictEqual(service.getSegments()[0].label, 'Ktlo');
 		assert.strictEqual(service.getMetric(), 'workType');
 
+		// Prompt Specificity uses conversation-segments.guidance_level_distribution.
+		// mockInsightsApis returns high=65, medium=5, low=5 in the segments response.
+		// classification has guidance_level: 'high', count: 5 (a different dataset).
+		// The first segment must be 'High' with count=65 (from segments, not classification).
 		service.setMetric('promptSpecificity');
-		assert.strictEqual(fetchCount, 2);
-		assert.strictEqual(service.getSegments()[0].label, 'High');
+		assert.strictEqual(fetchCount, 2, 'metric change must not trigger another API call');
+		const psSegments = service.getSegments();
+		assert.strictEqual(psSegments[0].label, 'High');
+		assert.strictEqual(psSegments[0].count, 65, 'must read from segments (count=65), not classification (count=5)');
+		assert.strictEqual(Number(psSegments[0].percent.toFixed(1)), 86.7);
 		service.dispose();
 	});
 

@@ -162,7 +162,9 @@ export function getHistogramForMetric(
 		case 'taskComplexity':
 			return payload.classification.complexityDistribution;
 		case 'promptSpecificity':
-			return payload.classification.guidanceLevelDistribution;
+			// Uses conversation-segments.guidance_level_distribution —
+			// NOT conversation-classification.guidance_level_distribution.
+			return payload.segments.guidanceLevelDistribution;
 	}
 }
 

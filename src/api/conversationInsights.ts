@@ -130,6 +130,10 @@ export function parseConversationSegments(data: unknown): ConversationSegments {
 		categoriesHistogram: parseHistogram(record.categories_histogram, [
 			'category',
 		]),
+		guidanceLevelDistribution: parseHistogram(
+			record.guidance_level_distribution,
+			['guidance_level', 'guidanceLevel']
+		),
 	};
 }
 

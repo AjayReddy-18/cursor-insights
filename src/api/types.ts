@@ -37,6 +37,11 @@ export interface ConversationSegments {
 	 * Distinct from classification.categoriesHistogram.
 	 */
 	categoriesHistogram: ConversationHistogramItem[];
+	/**
+	 * Prompt Specificity (guidance level) distribution from conversation-segments.
+	 * Used for the Prompt Specificity metric — NOT classification.guidanceLevelDistribution.
+	 */
+	guidanceLevelDistribution: ConversationHistogramItem[];
 }
 
 /** Combined Conversation Insights payload for the selected timeframe. */
