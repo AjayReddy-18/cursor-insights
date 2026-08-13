@@ -20,6 +20,12 @@ export type PendingAlert = {
 	event: UsageEvent;
 	threshold: number;
 	createdAt: number;
+	/**
+	 * When set, only the instance with this ID may claim and show the alert.
+	 * Written by the leader immediately after enqueuing, based on which window
+	 * was focused at the moment of threshold detection.
+	 */
+	targetInstanceId?: string;
 	claimedBy?: string;
 	claimedAt?: number;
 };
@@ -261,13 +267,23 @@ export class UsageMonitorCoordinator {
 
 	/**
 	 * Claim a pending alert for display in the focused window.
-	 * Returns null when there is nothing to show or another instance holds a fresh claim.
+	 * Returns null when there is nothing to show, another instance holds a
+	 * fresh claim, or the alert is targeted at a different instance.
 	 */
 	async claimPendingAlert(): Promise<PendingAlert | null> {
 		const { result } = await this.mutateState((state) => {
 			const pending = state.pendingAlert;
 			if (!pending) {
 				return { state, result: null as PendingAlert | null };
+			}
+
+			// If the leader has designated a specific target window, only that
+			// window may claim the alert. All other windows silently skip it.
+			if (
+				pending.targetInstanceId !== undefined &&
+				pending.targetInstanceId !== this.instanceId
+			) {
+				return { state, result: null };
 			}
 
 			const now = this.now();
@@ -294,6 +310,34 @@ export class UsageMonitorCoordinator {
 		});
 
 		return result;
+	}
+
+	/**
+	 * Atomically stamp a target instance on an already-enqueued pending alert.
+	 *
+	 * Called by the leader immediately after `advanceToEvent` returns
+	 * `'alert_enqueued'`, passing the ID of whichever window is currently
+	 * focused. Only that window will then be allowed to claim the alert.
+	 *
+	 * No-ops if the pending alert has already been claimed or replaced.
+	 */
+	async setAlertTarget(
+		eventId: string,
+		targetInstanceId: string
+	): Promise<void> {
+		await this.mutateState((state) => {
+			if (state.pendingAlert?.eventId !== eventId) {
+				// Alert was already claimed or replaced — nothing to do.
+				return state;
+			}
+			return {
+				...state,
+				pendingAlert: {
+					...state.pendingAlert,
+					targetInstanceId,
+				},
+			};
+		});
 	}
 
 	/** Clear the pending alert after the user dismisses it (OK or Ignore). */
@@ -525,6 +569,10 @@ function normalizePendingAlert(value: unknown): PendingAlert | null {
 		eventId: value.eventId,
 		threshold: value.threshold,
 		createdAt: typeof value.createdAt === 'number' ? value.createdAt : 0,
+		targetInstanceId:
+			typeof value.targetInstanceId === 'string'
+				? value.targetInstanceId
+				: undefined,
 		claimedBy:
 			typeof value.claimedBy === 'string' ? value.claimedBy : undefined,
 		claimedAt:

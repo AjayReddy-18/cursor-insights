@@ -22,6 +22,18 @@ export type HighCostAlertServiceOptions = {
 	storageDir: string;
 	instanceId?: string;
 	isWindowFocused?: () => boolean;
+	/**
+	 * Returns the instanceId of whichever Cursor window is currently focused,
+	 * or `undefined` when focus cannot be determined (no window is focused, or
+	 * the focused window's ID is unknown).
+	 *
+	 * Used by the leader so it can stamp `targetInstanceId` on a newly-enqueued
+	 * alert, directing delivery to exactly the focused window.
+	 *
+	 * Injected by the extension host at startup; injected via test helpers in
+	 * tests.
+	 */
+	getFocusedInstanceId?: () => string | undefined;
 	now?: () => number;
 	pollIntervalMs?: number;
 	coordinationIntervalMs?: number;
@@ -55,6 +67,7 @@ export class HighCostAlertService implements vscode.Disposable {
 	private billingCycleEnd: Date | undefined;
 	private readonly coordinator: UsageMonitorCoordinator;
 	private readonly isWindowFocused: () => boolean;
+	private readonly getFocusedInstanceId: () => string | undefined;
 	private readonly pollIntervalMs: number;
 	private readonly coordinationIntervalMs: number;
 	private readonly fetchLatestUsageEvent: typeof fetchLatestUsageEvent;
@@ -79,6 +92,7 @@ export class HighCostAlertService implements vscode.Disposable {
 		});
 		this.isWindowFocused =
 			options.isWindowFocused ?? (() => vscode.window.state.focused);
+		this.getFocusedInstanceId = options.getFocusedInstanceId ?? (() => undefined);
 		this.pollIntervalMs = options.pollIntervalMs ?? POLL_INTERVAL_MS;
 		this.coordinationIntervalMs =
 			options.coordinationIntervalMs ?? COORDINATION_INTERVAL_MS;
@@ -255,12 +269,35 @@ export class HighCostAlertService implements vscode.Disposable {
 				case 'skipped_below_threshold':
 					log(`New usage event detected: ${eventId}`);
 					break;
-				case 'alert_enqueued':
+				case 'alert_enqueued': {
 					log(`New usage event detected: ${eventId}`);
 					log(
 						`Threshold exceeded: cost=$${(event.chargedCents / 100).toFixed(2)} threshold=$${threshold.toFixed(2)}`
 					);
+					// Determine which window should receive the alert.
+					// If this (polling) window is focused, show it here immediately;
+					// there is no need to go through the shared-state claim path.
+					// Otherwise, stamp the focused window's ID onto the pending
+					// alert so that only that window can claim it.
+					if (this.isWindowFocused()) {
+						// Target this instance so tryShowPendingAlert claims it.
+						await this.coordinator.setAlertTarget(
+							eventId,
+							this.coordinator.instanceId
+						);
+					} else {
+						const focusedId = this.getFocusedInstanceId();
+						if (focusedId !== undefined) {
+							await this.coordinator.setAlertTarget(eventId, focusedId);
+							log(
+								`Alert targeted at focused window: ${focusedId}`
+							);
+						}
+						// If focusedId is undefined (no window focused), leave
+						// targetInstanceId unset so any focused window can claim it.
+					}
 					break;
+				}
 				case 'alert_duplicate':
 					log(`Duplicate alert suppressed for event: ${eventId}`);
 					break;

@@ -198,6 +198,12 @@ suite('HighCostAlertService multi-window behavior', () => {
 			initiallyFocused?: boolean;
 			alertChoice?: string | undefined;
 			threshold?: number;
+			/**
+			 * Override for getFocusedInstanceId. When omitted, the helper returns
+			 * the instanceId of whichever service currently has focused=true in
+			 * the shared `focused` map (i.e. the default registry lookup).
+			 */
+			getFocusedInstanceId?: () => string | undefined;
 		} = {}
 	): HighCostAlertService {
 		focused.set(instanceId, options.initiallyFocused ?? false);
@@ -210,6 +216,16 @@ suite('HighCostAlertService multi-window behavior', () => {
 			storageDir,
 			instanceId,
 			isWindowFocused: () => focused.get(instanceId) === true,
+			getFocusedInstanceId:
+				options.getFocusedInstanceId ??
+				(() => {
+					for (const [id, isFocused] of focused) {
+						if (isFocused) {
+							return id;
+						}
+					}
+					return undefined;
+				}),
 			pollIntervalMs: 60_000,
 			coordinationIntervalMs: 60_000,
 			leaseTtlMs: 150_000,
@@ -472,6 +488,150 @@ suite('HighCostAlertService multi-window behavior', () => {
 		} finally {
 			a.dispose();
 			b.dispose();
+		}
+	});
+
+	// ── Targeted delivery tests ──────────────────────────────────────────────
+
+	test('focused polling window receives alert directly (leader is focused)', async () => {
+		// Window A is leader AND focused — the alert must appear in A, not elsewhere.
+		const a = createService('a', { initiallyFocused: true });
+		const b = createService('b', { initiallyFocused: false });
+		const c = createService('c', { initiallyFocused: false });
+
+		try {
+			await a.tick({ bootstrap: true });
+			assert.strictEqual(a.isLeader(), true);
+
+			latestEvent = makeEvent({ chargedCents: 350, timestamp: '11' });
+			await a.tick({ bootstrap: false, usagePoll: true });
+
+			// A is leader and focused → alert targeted at A and shown in A.
+			assert.strictEqual(alertCalls.length, 1);
+			assert.ok(alertCalls[0]?.startsWith('a:'));
+
+			// B and C tick; neither should re-show the alert.
+			await b.tick({ bootstrap: false, usagePoll: false });
+			await c.tick({ bootstrap: false, usagePoll: false });
+			assert.strictEqual(alertCalls.length, 1);
+		} finally {
+			a.dispose();
+			b.dispose();
+			c.dispose();
+		}
+	});
+
+	test('non-focused polling window targets the currently focused window', async () => {
+		// Window A = leader, not focused.
+		// Window B = inactive.
+		// Window C = focused.
+		// Expected: C receives and shows the alert; A and B do not.
+		const a = createService('a', { initiallyFocused: false });
+		const b = createService('b', { initiallyFocused: false });
+		const c = createService('c', { initiallyFocused: true });
+
+		try {
+			await a.tick({ bootstrap: true });
+			assert.strictEqual(a.isLeader(), true);
+
+			// Followers register themselves (non-polling tick).
+			await b.tick({ bootstrap: false, usagePoll: false });
+			await c.tick({ bootstrap: false, usagePoll: false });
+
+			latestEvent = makeEvent({ chargedCents: 400, timestamp: '12' });
+			// A detects threshold crossing: C is focused → targets C.
+			await a.tick({ bootstrap: false, usagePoll: true });
+			// A is not focused, so it should not show the alert itself.
+			assert.strictEqual(alertCalls.length, 0);
+
+			// B ticks — not focused AND not the target → skips.
+			await b.tick({ bootstrap: false, usagePoll: false });
+			assert.strictEqual(alertCalls.length, 0);
+
+			// C ticks — focused AND is the target → claims and shows.
+			await c.tick({ bootstrap: false, usagePoll: false });
+			assert.strictEqual(alertCalls.length, 1);
+			assert.ok(alertCalls[0]?.startsWith('c:'));
+
+			// A ticks again — alert is already handled, no replay.
+			await a.tick({ bootstrap: false, usagePoll: false });
+			assert.strictEqual(alertCalls.length, 1);
+		} finally {
+			a.dispose();
+			b.dispose();
+			c.dispose();
+		}
+	});
+
+	test('wrong (non-targeted) window cannot claim a targeted alert', async () => {
+		// Leader A targets C. Window B should not be able to claim the alert
+		// even if it is also focused at the same time.
+		const a = createService('a', { initiallyFocused: false });
+		const b = createService('b', { initiallyFocused: true }); // focused but NOT target
+		const c = createService('c', { initiallyFocused: true }); // focused AND target
+
+		try {
+			await a.tick({ bootstrap: true });
+			assert.strictEqual(a.isLeader(), true);
+
+			latestEvent = makeEvent({ chargedCents: 500, timestamp: '13' });
+
+			// Override getFocusedInstanceId on A so it always reports 'c' as the
+			// focused window, regardless of the map order.
+			const strictA = createService('a-strict', {
+				initiallyFocused: false,
+				getFocusedInstanceId: () => 'c',
+			});
+			a.dispose();
+
+			await strictA.tick({ bootstrap: true });
+			assert.strictEqual(strictA.isLeader(), true);
+
+			await strictA.tick({ bootstrap: false, usagePoll: true });
+			assert.strictEqual(alertCalls.length, 0);
+
+			// B ticks — focused but target is c → must be skipped.
+			await b.tick({ bootstrap: false, usagePoll: false });
+			assert.strictEqual(alertCalls.length, 0);
+
+			// C ticks — is the target → shows the alert.
+			await c.tick({ bootstrap: false, usagePoll: false });
+			assert.strictEqual(alertCalls.length, 1);
+			assert.ok(alertCalls[0]?.startsWith('c:'));
+		} finally {
+			a.dispose();
+			b.dispose();
+			c.dispose();
+		}
+	});
+
+	test('multiple windows open produce exactly one alert (targeted delivery)', async () => {
+		// Three windows; leader is A (not focused); C is focused.
+		// All three tick after the threshold crossing.
+		const a = createService('a', { initiallyFocused: false });
+		const b = createService('b', { initiallyFocused: false });
+		const c = createService('c', { initiallyFocused: true });
+
+		try {
+			await a.tick({ bootstrap: true });
+			assert.strictEqual(a.isLeader(), true);
+
+			latestEvent = makeEvent({ chargedCents: 600, timestamp: '14' });
+			await a.tick({ bootstrap: false, usagePoll: true });
+
+			// All three windows tick simultaneously (simulate parallel ticks).
+			await Promise.all([
+				a.tick({ bootstrap: false, usagePoll: false }),
+				b.tick({ bootstrap: false, usagePoll: false }),
+				c.tick({ bootstrap: false, usagePoll: false }),
+			]);
+
+			assert.strictEqual(alertCalls.length, 1);
+			assert.ok(alertCalls[0]?.startsWith('c:'));
+		} finally {
+			a.dispose();
+			b.dispose();
+			c.dispose();
 		}
 	});
 });
