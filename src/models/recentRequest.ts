@@ -1,4 +1,4 @@
-import { formatCentsAsUsd, formatLocalTime } from '../api/format';
+import { formatCentsAsUsd, formatUtcTime } from '../api/format';
 import type { UsageEvent } from '../api/types';
 
 /** View-ready recent request row for the sidebar. */
@@ -10,7 +10,7 @@ export interface RecentRequest {
 
 export function toRecentRequest(event: UsageEvent): RecentRequest {
 	return {
-		time: formatLocalTime(event.timestamp),
+		time: formatUtcTime(event.timestamp),
 		model: event.model,
 		cost: formatCentsAsUsd(event.chargedCents),
 	};

@@ -21,10 +21,10 @@ export function formatBillingDay(date: Date): string {
 }
 
 /**
- * Formats an API usage-event timestamp in the user's local 24-hour time.
+ * Formats an API usage-event timestamp in UTC 24-hour time.
  * Examples: "14:14", "09:08"
  */
-export function formatLocalTime(timestamp: string): string {
+export function formatUtcTime(timestamp: string): string {
 	const ms = Number(timestamp);
 	const date =
 		Number.isFinite(ms) && timestamp.trim() !== ''
@@ -35,7 +35,10 @@ export function formatLocalTime(timestamp: string): string {
 		return timestamp;
 	}
 
-	const hours = String(date.getHours()).padStart(2, '0');
-	const minutes = String(date.getMinutes()).padStart(2, '0');
+	const hours = String(date.getUTCHours()).padStart(2, '0');
+	const minutes = String(date.getUTCMinutes()).padStart(2, '0');
 	return `${hours}:${minutes}`;
 }
+
+/** @deprecated Use formatUtcTime. */
+export const formatLocalTime = formatUtcTime;

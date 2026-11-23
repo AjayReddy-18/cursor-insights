@@ -36,27 +36,34 @@ export type ConversationInsightsDateRange = {
 };
 
 /**
- * Formats a YYYY-MM-DD date string from a local Date (calendar day).
+ * Formats a YYYY-MM-DD date string from a UTC Date (calendar day).
  */
-export function formatLocalDate(date: Date): string {
-	const year = date.getFullYear();
-	const month = String(date.getMonth() + 1).padStart(2, '0');
-	const day = String(date.getDate()).padStart(2, '0');
+export function formatUtcDate(date: Date): string {
+	const year = date.getUTCFullYear();
+	const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+	const day = String(date.getUTCDate()).padStart(2, '0');
 	return `${year}-${month}-${day}`;
 }
 
-function startOfLocalDay(date: Date): Date {
-	return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+/** @deprecated Use formatUtcDate. */
+export const formatLocalDate = formatUtcDate;
+
+function startOfUtcDay(date: Date): Date {
+	return new Date(Date.UTC(
+		date.getUTCFullYear(),
+		date.getUTCMonth(),
+		date.getUTCDate()
+	));
 }
 
-function addLocalDays(date: Date, days: number): Date {
-	const next = startOfLocalDay(date);
-	next.setDate(next.getDate() + days);
+function addUtcDays(date: Date, days: number): Date {
+	const next = startOfUtcDay(date);
+	next.setUTCDate(next.getUTCDate() + days);
 	return next;
 }
 
 /**
- * Computes startDate/endDate for Conversation Insights using the user's local calendar.
+ * Computes startDate/endDate for Conversation Insights using the UTC calendar.
  *
  * - 1D: today → today
  * - 7D: today − 7 days → today
@@ -67,26 +74,30 @@ export function getDateRangeForTimeframe(
 	timeframe: ConversationTimeframe,
 	now: Date = new Date()
 ): ConversationInsightsDateRange {
-	const today = startOfLocalDay(now);
-	const endDate = formatLocalDate(today);
+	const today = startOfUtcDay(now);
+	const endDate = formatUtcDate(today);
 
 	switch (timeframe) {
 		case '1D':
 			return { startDate: endDate, endDate };
 		case '7D':
 			return {
-				startDate: formatLocalDate(addLocalDays(today, -7)),
+				startDate: formatUtcDate(addUtcDays(today, -7)),
 				endDate,
 			};
 		case '30D':
 			return {
-				startDate: formatLocalDate(addLocalDays(today, -30)),
+				startDate: formatUtcDate(addUtcDays(today, -30)),
 				endDate,
 			};
 		case 'MTD': {
-			const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+			const monthStart = new Date(Date.UTC(
+				today.getUTCFullYear(),
+				today.getUTCMonth(),
+				1
+			));
 			return {
-				startDate: formatLocalDate(monthStart),
+				startDate: formatUtcDate(monthStart),
 				endDate,
 			};
 		}

@@ -19,7 +19,7 @@ import {
 } from '../config';
 import {
 	formatInsightLabel,
-	formatLocalDate,
+	formatUtcDate,
 	getChartSegmentsForMetric,
 	getDateRangeForTimeframe,
 	getHistogramForMetric,
@@ -27,6 +27,7 @@ import {
 	type ConversationMetric,
 	type ConversationTimeframe,
 } from '../models/conversationInsights';
+import { formatUtcTime } from '../api/format';
 import { ConversationInsightsService } from '../services/conversationInsightsService';
 import type { ConversationInsightsPayload } from '../api/types';
 import {
@@ -40,7 +41,7 @@ import {
 
 suite('Conversation Insights timeframe', () => {
 	test('1D is today through today', () => {
-		const now = new Date(2026, 7, 8, 15, 30, 0); // Aug 8 local
+		const now = new Date(Date.UTC(2026, 7, 8, 15, 30, 0)); // Aug 8 UTC
 		const range = getDateRangeForTimeframe('1D', now);
 		assert.deepStrictEqual(range, {
 			startDate: '2026-08-08',
@@ -49,7 +50,7 @@ suite('Conversation Insights timeframe', () => {
 	});
 
 	test('7D is today minus 7 days through today', () => {
-		const now = new Date(2026, 7, 8, 12, 0, 0);
+		const now = new Date(Date.UTC(2026, 7, 8, 12, 0, 0));
 		const range = getDateRangeForTimeframe('7D', now);
 		assert.deepStrictEqual(range, {
 			startDate: '2026-08-01',
@@ -58,7 +59,7 @@ suite('Conversation Insights timeframe', () => {
 	});
 
 	test('30D is today minus 30 days through today', () => {
-		const now = new Date(2026, 7, 8, 12, 0, 0);
+		const now = new Date(Date.UTC(2026, 7, 8, 12, 0, 0));
 		const range = getDateRangeForTimeframe('30D', now);
 		assert.deepStrictEqual(range, {
 			startDate: '2026-07-09',
@@ -67,7 +68,7 @@ suite('Conversation Insights timeframe', () => {
 	});
 
 	test('MTD is first day of current month through today', () => {
-		const now = new Date(2026, 7, 8, 9, 0, 0);
+		const now = new Date(Date.UTC(2026, 7, 8, 9, 0, 0));
 		const range = getDateRangeForTimeframe('MTD', now);
 		assert.deepStrictEqual(range, {
 			startDate: '2026-08-01',
@@ -76,7 +77,7 @@ suite('Conversation Insights timeframe', () => {
 	});
 
 	test('MTD on the first of the month is a single day', () => {
-		const now = new Date(2026, 2, 1, 8, 0, 0); // Mar 1
+		const now = new Date(Date.UTC(2026, 2, 1, 8, 0, 0)); // Mar 1 UTC
 		const range = getDateRangeForTimeframe('MTD', now);
 		assert.deepStrictEqual(range, {
 			startDate: '2026-03-01',
@@ -84,17 +85,21 @@ suite('Conversation Insights timeframe', () => {
 		});
 	});
 
-	test('formatLocalDate pads month and day', () => {
-		assert.strictEqual(formatLocalDate(new Date(2026, 0, 5)), '2026-01-05');
+	test('formatUtcDate pads month and day', () => {
+		assert.strictEqual(formatUtcDate(new Date(Date.UTC(2026, 0, 5))), '2026-01-05');
 	});
 
-	test('uses local calendar across month boundaries for 7D', () => {
-		const now = new Date(2026, 0, 3, 10, 0, 0); // Jan 3
+	test('uses UTC calendar across month boundaries for 7D', () => {
+		const now = new Date(Date.UTC(2026, 0, 3, 10, 0, 0)); // Jan 3 UTC
 		const range = getDateRangeForTimeframe('7D', now);
 		assert.deepStrictEqual(range, {
 			startDate: '2025-12-27',
 			endDate: '2026-01-03',
 		});
+	});
+
+	test('request timestamps are formatted in UTC', () => {
+		assert.strictEqual(formatUtcTime('2026-08-08T14:05:00.000Z'), '14:05');
 	});
 });
 
